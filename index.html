@@ -337,6 +337,33 @@
   .hist-row .h-date { color:var(--text-dim); }
   .hist-row .h-val { color:var(--text-bright); font-weight:600; font-variant-numeric: tabular-nums; }
   .hist-row .h-delta { font-size:0.66rem; font-weight:700; }
+
+  /* --- METRIC TOGGLE (Gewicht/Volumen) --- */
+  .metric-toggle { display:flex; gap:4px; margin-top:10px; }
+  .metric-toggle button {
+    flex:1; padding:8px; font-size:0.72rem; font-weight:600;
+    background:var(--surface2); color:var(--text-dim);
+    border:1px solid var(--border); border-radius:10px; cursor:pointer;
+    transition: all 0.15s;
+  }
+  .metric-toggle button.active { background:var(--grad); color:#14100a; border-color:transparent; }
+
+  /* --- WOCHEN-ZUSAMMENFASSUNG --- */
+  .week-days { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:8px; }
+  .week-day {
+    display:flex; flex-direction:column; align-items:center; gap:2px;
+    background:var(--surface2); border:1px solid var(--border);
+    border-radius:10px; padding:6px 10px; min-width:52px;
+  }
+  .wd-name { font-size:0.62rem; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.04em; }
+  .wd-label { font-size:0.68rem; color:var(--text-bright); font-weight:600; }
+  .week-vol { display:flex; gap:10px; align-items:center; font-size:0.74rem; color:var(--text-dim); flex-wrap:wrap; }
+  .week-vol strong { color:var(--text-bright); }
+  .wk-up { color:var(--green); font-weight:700; }
+  .wk-down { color:var(--red); font-weight:700; }
+  .wk-same { color:var(--text-dim); font-weight:600; }
+  .week-empty { font-size:0.74rem; color:var(--text-dim); margin-bottom:8px; }
+  .week-hint { font-size:0.66rem; color:var(--accent); margin-top:6px; font-style:italic; }
 </style>
 </head>
 <body>
@@ -527,6 +554,111 @@ function maxWeight(entry) {
 
 function fmtKg(n) {
   return String(n).replace('.', ',');
+}
+
+function volumeForEntry(entry) {
+  // Summe kg×Wdh über alle Sätze; null wenn keine Wdh. vorhanden
+  let total = 0, hasReps = false;
+  Object.values(entry || {}).forEach(v => {
+    const n = normalizeEntry(v);
+    const w = parseFloat(String(n.w).replace(',', '.'));
+    const r = parseFloat(String(n.r).replace(',', '.'));
+    if (!isNaN(w) && !isNaN(r) && r > 0) { total += w * r; hasReps = true; }
+  });
+  return hasReps ? Math.round(total * 10) / 10 : null;
+}
+
+function hasAnyReps(data) {
+  const hist = getHistory(data);
+  return hist.some(h => Object.values(h.entries || {}).some(e => volumeForEntry(e) !== null));
+}
+
+function weekKey(iso) {
+  // Montag der Woche (Mo–So) zum ISO-Datum
+  const d = new Date(iso + 'T12:00:00');
+  const dow = (d.getDay() + 6) % 7;
+  const m = new Date(d);
+  m.setDate(d.getDate() - dow);
+  return m.toISOString().slice(0, 10);
+}
+
+const DAY_LABEL = { 'upper-a': 'Upper A', 'lower-a': 'Lower A', 'upper-b': 'Upper B', 'lower-b': 'Lower B', 'schwach': 'Schwachstellen' };
+
+function weekVolume(h) {
+  let total = 0;
+  Object.values(h.entries || {}).forEach(e => {
+    const v = volumeForEntry(e);
+    if (v !== null) total += v;
+  });
+  return Math.round(total * 10) / 10;
+}
+
+function renderWeekSummary(data) {
+  const hist = getHistory(data);
+  const today = new Date().toISOString().slice(0, 10);
+  const wk = weekKey(today);
+  const wkDate = new Date(wk + 'T12:00:00');
+  const prev = new Date(wkDate);
+  prev.setDate(prev.getDate() - 7);
+  const prevKey = prev.toISOString().slice(0, 10);
+
+  const days = {};
+  let volThis = 0, volPrev = 0;
+  hist.forEach(h => {
+    if (!h.date || !h.day) return;
+    const v = weekVolume(h);
+    if (weekKey(h.date) === wk) {
+      volThis += v;
+      if (!days[h.day] || h.date > days[h.day].date) days[h.day] = { date: h.date, vol: v };
+    } else if (weekKey(h.date) === prevKey) {
+      volPrev += v;
+    }
+  });
+  volThis = Math.round(volThis * 10) / 10;
+  volPrev = Math.round(volPrev * 10) / 10;
+
+  const dayNames = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
+  let html = '<div class="info-card"><h2>Diese Woche</h2>';
+  const dayKeys = Object.keys(days);
+  if (!dayKeys.length) {
+    html += '<div class="week-empty">Noch kein Training diese Woche — los geht\'s! 💪</div>';
+  } else {
+    html += '<div class="week-days">';
+    dayKeys.forEach(k => {
+      const d = new Date(days[k].date + 'T12:00:00');
+      html += '<div class="week-day"><span class="wd-name">' + dayNames[d.getDay()] + '</span><span class="wd-label">' + (DAY_LABEL[k] || k) + '</span></div>';
+    });
+    html += '</div>';
+  }
+  html += '<div class="week-vol">';
+  html += '<span>Volumen: <strong>' + fmtKg(volThis) + ' kg</strong></span>';
+  if (volPrev > 0) {
+    const pct = Math.round((volThis - volPrev) / volPrev * 100);
+    if (pct > 0) html += '<span class="wk-up">↑ ' + pct + ' % ggü. letzter Woche</span>';
+    else if (pct < 0) html += '<span class="wk-down">↓ ' + Math.abs(pct) + ' % ggü. letzter Woche</span>';
+    else html += '<span class="wk-same">= letzte Woche</span>';
+  }
+  html += '</div>';
+  if (!hasAnyReps(data)) {
+    html += '<div class="week-hint">Tipp: Wdh. eintragen, dann zählt die App dein Volumen (kg × Wdh.)</div>';
+  }
+  html += '</div>';
+  return html;
+}
+
+function getMetricPoints(data, exId) {
+  const hist = getHistory(data);
+  const points = [];
+  hist.forEach(h => {
+    const w = h.entries && h.entries[exId];
+    if (!w) return;
+    let v = null;
+    if (__verlaufMetric === 'volume') v = volumeForEntry(w);
+    else v = maxWeight(w);
+    if (v !== null) points.push({ date: h.date, v: v });
+  });
+  points.sort((a, b) => a.date < b.date ? -1 : 1);
+  return points;
 }
 
 function getLastEntry(data, exId) {
@@ -909,6 +1041,7 @@ function renderInfo() {
 /* ---------- Verlauf-Tab ---------- */
 
 let __verlaufEx = null;
+let __verlaufMetric = 'weight';
 
 function allExercises() {
   const list = [];
@@ -925,43 +1058,45 @@ function renderVerlauf() {
   const data = loadData();
 
   let html = '<div class="day-panel active" id="panel-verlauf">';
-  html += '<div class="info-card"><h2>Gewichts-Verlauf</h2>';
+
+  // Wochen-Zusammenfassung
+  html += renderWeekSummary(data);
+
+  html += '<div class="info-card"><h2>' + (__verlaufMetric === 'volume' ? 'Volumen-Verlauf' : 'Gewichts-Verlauf') + '</h2>';
+  html += '<div class="metric-toggle">';
+  html += '<button class="' + (__verlaufMetric === 'weight' ? 'active' : '') + '" onclick="selectVerlaufMetric(\'weight\')">Gewicht (kg)</button>';
+  html += '<button class="' + (__verlaufMetric === 'volume' ? 'active' : '') + '" onclick="selectVerlaufMetric(\'volume\')">Volumen (kg×Wdh)</button>';
+  html += '</div>';
   html += '<div class="ex-chips">';
   exs.forEach(ex => {
     html += '<button class="' + (ex.id === __verlaufEx ? 'active' : '') + '" onclick="selectVerlaufEx(\'' + ex.id + '\')">' + ex.name.split(' (')[0] + '</button>';
   });
   html += '</div></div>';
 
-  const hist = getHistory(data);
-  const points = [];
-  hist.forEach(h => {
-    const w = h.entries && h.entries[__verlaufEx];
-    const m = maxWeight(w);
-    if (m !== null) points.push({ date: h.date, kg: m });
-  });
-  points.sort((a, b) => a.date < b.date ? -1 : 1);
+  const points = getMetricPoints(data, __verlaufEx);
+  const unit = __verlaufMetric === 'volume' ? ' kg Volumen' : ' kg';
 
   html += '<div class="chart-wrap"><h3>' + (__verlaufEx ? __verlaufEx.split('-').pop() : '') + '</h3>';
   if (points.length >= 2) {
-    html += '<div class="chart-sub">Bestes Gewicht pro Training · ' + points.length + ' Einträge</div>';
+    html += '<div class="chart-sub">' + (__verlaufMetric === 'volume' ? 'Volumen (Summe kg×Wdh)' : 'Bestes Gewicht') + ' pro Training · ' + points.length + ' Einträge</div>';
     html += '<canvas id="verlauf-canvas"></canvas>';
   } else if (points.length === 1) {
-    html += '<div class="chart-sub">Bisher 1 Training · ' + fmtKg(points[0].kg) + ' kg (' + formatDate(points[0].date) + ')</div>';
-    html += '<div class="chart-empty">Ab dem 2. Training erscheint hier die Steigerungs-Kurve 📈</div>';
+    html += '<div class="chart-sub">Bisher 1 Training · ' + fmtKg(points[0].v) + unit + ' (' + formatDate(points[0].date) + ')</div>';
+    html += '<div class="chart-empty">Ab dem 2. Training erscheint hier die Kurve 📈</div>';
   } else {
-    html += '<div class="chart-empty">Noch kein Training für diese Übung gespeichert</div>';
+    html += '<div class="chart-empty">' + (__verlaufMetric === 'volume' && !hasAnyReps(data) ? 'Volumen braucht Wiederholungs-Angaben — beim nächsten Training Wdh. eintragen!' : 'Noch kein Training für diese Übung gespeichert') + '</div>';
   }
 
   html += '<div class="hist-list">';
   for (let i = points.length - 1; i >= 0; i--) {
     let delta = '';
     if (i < points.length - 1) {
-      const diff = points[i].kg - points[i + 1].kg;
-      if (diff > 0.001) delta = '<span class="h-delta" style="color:var(--green)">↑ +' + fmtKg(diff) + ' kg</span>';
-      else if (diff < -0.001) delta = '<span class="h-delta" style="color:var(--red)">↓ ' + fmtKg(diff) + ' kg</span>';
+      const diff = points[i].v - points[i + 1].v;
+      if (diff > 0.001) delta = '<span class="h-delta" style="color:var(--green)">↑ +' + fmtKg(diff) + '</span>';
+      else if (diff < -0.001) delta = '<span class="h-delta" style="color:var(--red)">↓ ' + fmtKg(diff) + '</span>';
       else delta = '<span class="h-delta" style="color:var(--text-dim)">= gleich</span>';
     }
-    html += '<div class="hist-row"><span class="h-date">' + formatDate(points[i].date) + '</span><span class="h-val">' + fmtKg(points[i].kg) + ' kg</span>' + delta + '</div>';
+    html += '<div class="hist-row"><span class="h-date">' + formatDate(points[i].date) + '</span><span class="h-val">' + fmtKg(points[i].v) + '</span>' + delta + '</div>';
   }
   html += '</div></div></div>';
   return html;
@@ -972,18 +1107,16 @@ function selectVerlaufEx(exId) {
   renderAll();
 }
 
+function selectVerlaufMetric(m) {
+  __verlaufMetric = m;
+  renderAll();
+}
+
 function drawVerlaufChart() {
   const canvas = document.getElementById('verlauf-canvas');
   if (!canvas) return;
   const data = loadData();
-  const hist = getHistory(data);
-  const points = [];
-  hist.forEach(h => {
-    const w = h.entries && h.entries[__verlaufEx];
-    const m = maxWeight(w);
-    if (m !== null) points.push({ date: h.date, kg: m });
-  });
-  points.sort((a, b) => a.date < b.date ? -1 : 1);
+  const points = getMetricPoints(data, __verlaufEx);
   if (points.length < 2) return;
 
   const dpr = window.devicePixelRatio || 1;
@@ -996,13 +1129,13 @@ function drawVerlaufChart() {
   const padL = 34, padR = 12, padT = 12, padB = 22;
   const iw = W - padL - padR, ih = H - padT - padB;
   let min = Infinity, max = -Infinity;
-  points.forEach(p => { if (p.kg < min) min = p.kg; if (p.kg > max) max = p.kg; });
+  points.forEach(p => { if (p.v < min) min = p.v; if (p.v > max) max = p.v; });
   if (min === max) { min -= 1; max += 1; }
   const pad = (max - min) * 0.15;
   min -= pad; max += pad;
 
   const x = i => padL + (points.length > 1 ? i / (points.length - 1) * iw : iw / 2);
-  const y = kg => padT + ih - (kg - min) / (max - min) * ih;
+  const y = v => padT + ih - (v - min) / (max - min) * ih;
 
   ctx.clearRect(0, 0, W, H);
 
@@ -1013,10 +1146,10 @@ function drawVerlaufChart() {
   ctx.lineWidth = 1;
   const steps = 4;
   for (let i = 0; i <= steps; i++) {
-    const kg = min + (max - min) * i / steps;
-    const yy = y(kg);
+    const v = min + (max - min) * i / steps;
+    const yy = y(v);
     ctx.beginPath(); ctx.moveTo(padL, yy); ctx.lineTo(W - padR, yy); ctx.stroke();
-    ctx.fillText(fmtKg(Math.round(kg * 10) / 10), 4, yy + 3);
+    ctx.fillText(fmtKg(Math.round(v * 10) / 10), 4, yy + 3);
   }
 
   // X-Beschriftung (erstes + letztes Datum)
@@ -1046,14 +1179,14 @@ function drawVerlaufChart() {
 
   // Punkte + kg-Labels
   points.forEach((p, i) => {
-    const px = x(i), py = y(p.kg);
+    const px = x(i), py = y(p.v);
     ctx.beginPath(); ctx.arc(px, py, 4, 0, Math.PI * 2);
     ctx.fillStyle = '#0b0b0f'; ctx.fill();
     ctx.lineWidth = 2; ctx.strokeStyle = '#e08a4e'; ctx.stroke();
     ctx.font = 'bold 10px -apple-system, sans-serif';
     ctx.fillStyle = '#f2f2f7';
     ctx.textAlign = 'center';
-    ctx.fillText(fmtKg(p.kg), px, py - 9);
+    ctx.fillText(fmtKg(p.v), px, py - 9);
     ctx.textAlign = 'left';
   });
 }
