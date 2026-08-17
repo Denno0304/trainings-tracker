@@ -1,0 +1,1144 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Training">
+<meta name="theme-color" content="#0f0f0f">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Trainings-Tracker</title>
+<style>
+  :root {
+    --bg: #0f0f0f;
+    --surface: #1a1a1a;
+    --surface2: #222;
+    --border: #2a2a2a;
+    --text: #d4d4d4;
+    --text-bright: #f0f0f0;
+    --text-dim: #888;
+    --accent: #c9a96e;
+    --accent2: #d4754e;
+    --green: #7a9a6e;
+    --red: #b05a50;
+    --blue: #6b8fad;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html { font-size: 15px; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100dvh;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+  }
+
+  /* --- HEADER --- */
+  header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 16px;
+    position: sticky; top:0; z-index:10;
+  }
+  header h1 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text-bright);
+    letter-spacing: 0.02em;
+  }
+  header .sub {
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    margin-top: 2px;
+  }
+
+  /* --- TAB BAR --- */
+  nav {
+    display: flex;
+    overflow-x: auto;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    position: sticky; top: 56px; z-index:9;
+    scrollbar-width: none;
+  }
+  nav::-webkit-scrollbar { display:none; }
+  nav button {
+    flex: 0 0 auto;
+    padding: 10px 14px;
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    font-size: 0.78rem;
+    font-weight: 500;
+    white-space: nowrap;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.15s;
+  }
+  nav button.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+  }
+
+  /* --- MAIN --- */
+  main {
+    padding: 12px 12px 100px;
+  }
+  .day-panel { display: none; }
+  .day-panel.active { display: block; }
+
+  /* --- EXERCISE CARD --- */
+  .ex-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+    margin-bottom: 8px;
+  }
+  .ex-card.superset {
+    border-left: 3px solid var(--accent2);
+    margin-bottom: 2px;
+    border-radius: 8px 8px 4px 4px;
+  }
+  .ex-card.superset + .ex-card.superset {
+    border-radius: 4px 4px 8px 8px;
+    margin-bottom: 8px;
+  }
+  .ex-card.superset:last-of-type { margin-bottom: 8px; }
+  .superset-badge {
+    display: inline-block;
+    background: var(--accent2);
+    color: #0f0f0f;
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 2px 8px;
+    border-radius: 4px;
+    margin-bottom: 6px;
+  }
+  .superset-badge + .superset-badge {
+    margin-left: 4px;
+  }
+  .superset-hint {
+    font-size: 0.66rem;
+    color: var(--accent2);
+    margin-top: 2px;
+    font-style: italic;
+  }
+
+  .ex-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 8px;
+  }
+  .ex-name {
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: var(--text-bright);
+    line-height: 1.3;
+  }
+  .ex-meta {
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    white-space: nowrap;
+    text-align: right;
+    line-height: 1.4;
+  }
+  .ex-meta .rir {
+    color: var(--blue);
+    font-weight: 500;
+  }
+  .ex-note {
+    font-size: 0.68rem;
+    color: var(--accent);
+    margin-bottom: 6px;
+    font-style: italic;
+  }
+
+  /* --- SETS ROW --- */
+  .sets-row {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .set-input {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .set-input label {
+    font-size: 0.62rem;
+    color: var(--text-dim);
+    text-align: center;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .set-input input {
+    width: 62px;
+    padding: 7px 4px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    color: var(--text-bright);
+    font-size: 0.8rem;
+    text-align: center;
+    font-family: inherit;
+    transition: border 0.15s;
+  }
+  .set-input input:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+  .set-input input.filled {
+    border-color: var(--green);
+  }
+
+  /* --- SAVE INDICATOR --- */
+  .save-dot {
+    display: inline-block;
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    margin-left: 4px;
+    vertical-align: middle;
+  }
+  .save-dot.saved { background: var(--green); }
+  .save-dot.unsaved { background: var(--accent2); }
+
+  /* --- BUTTONS --- */
+  .btn-row {
+    display: flex;
+    gap: 8px;
+    margin-top: 16px;
+  }
+  .btn {
+    padding: 10px 16px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface2);
+    color: var(--text);
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .btn:active { transform: scale(0.97); }
+  .btn.primary {
+    background: var(--accent);
+    color: #0f0f0f;
+    border-color: var(--accent);
+    font-weight: 600;
+  }
+  .btn.danger { color: var(--red); border-color: var(--red); }
+
+  /* --- DATE --- */
+  .date-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 14px;
+    font-size: 0.82rem;
+  }
+  .date-row span { color: var(--text-dim); }
+  .date-row strong { color: var(--text-bright); }
+
+  /* --- LEGEND --- */
+  .legend {
+    margin-top: 20px;
+    padding: 10px 14px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    line-height: 1.8;
+  }
+  .legend span { margin-right: 12px; }
+  .legend .dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:4px; vertical-align:middle; }
+  .legend .dot.g { background:var(--green); }
+  .legend .dot.o { background:var(--accent2); }
+  .legend .dot.b { background:var(--blue); }
+  .legend .ss-symbol {
+    display:inline-block;
+    width:10px; height:14px;
+    border-left:3px solid var(--accent2);
+    border-radius:2px;
+    margin-right:4px;
+    vertical-align:middle;
+    line-height:14px;
+    text-align:center;
+    font-size:0.55rem;
+    color:var(--accent2);
+  }
+
+  /* --- INFO TAB --- */
+  .info-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin-bottom: 10px;
+  }
+  .info-card h2 {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--accent);
+    margin-bottom: 10px;
+    letter-spacing: 0.02em;
+  }
+  .week-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 4px;
+    text-align: center;
+    font-size: 0.72rem;
+  }
+  .week-grid div {
+    background: var(--surface2);
+    padding: 8px 4px;
+    border-radius: 5px;
+    line-height: 1.5;
+  }
+  .week-grid div strong { color: var(--text-bright); font-size: 0.7rem; }
+  .week-grid div.rest { opacity: 0.5; }
+  .rules-list {
+    padding-left: 20px;
+    font-size: 0.78rem;
+    line-height: 1.9;
+  }
+  .rules-list li { color: var(--text); }
+  .rules-list li strong { color: var(--text-bright); }
+  .info-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.73rem;
+  }
+  .info-table th {
+    text-align: left;
+    color: var(--text-dim);
+    font-weight: 500;
+    padding: 6px 10px 6px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .info-table td {
+    padding: 7px 10px 7px 0;
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+  }
+  .info-table tr:last-child td { border-bottom: none; }
+  .hand-rule {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .hand-rule div {
+    background: var(--surface2);
+    padding: 10px 12px;
+    border-radius: 6px;
+    font-size: 0.76rem;
+    color: var(--text-bright);
+    line-height: 1.5;
+  }
+  .hand-rule small {
+    display: block;
+    color: var(--text-dim);
+    font-size: 0.66rem;
+    margin-top: 2px;
+  }
+  .hand-icon {
+    display: inline-block;
+    background: var(--accent);
+    color: #0f0f0f;
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    text-align: center;
+    line-height: 22px;
+    font-weight: 700;
+    font-size: 0.75rem;
+    margin-right: 6px;
+  }
+  .tempo-desc {
+    font-size: 0.78rem;
+    color: var(--text-bright);
+    line-height: 1.6;
+  }
+  .tempo-hint {
+    font-size: 0.7rem;
+    color: var(--accent);
+    margin-top: 4px;
+    font-style: italic;
+  }
+
+  /* --- LAST TRAINING / DELTA (Verlauf) --- */
+  .last-sets {
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    margin: 2px 0 6px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .last-sets strong { color: var(--text-bright); font-weight: 500; }
+  .delta {
+    display: inline-block;
+    font-size: 0.66rem;
+    font-weight: 600;
+    padding: 1px 6px;
+    border-radius: 4px;
+  }
+  .delta.up { background: rgba(122,154,110,0.18); color: var(--green); }
+  .delta.down { background: rgba(176,90,80,0.18); color: var(--red); }
+  .delta.same { background: rgba(136,136,136,0.15); color: var(--text-dim); }
+
+  /* --- BACKUP --- */
+  .backup-area {
+    width: 100%;
+    min-height: 60px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-size: 0.68rem;
+    font-family: ui-monospace, Menlo, monospace;
+    padding: 8px;
+    margin-top: 8px;
+    resize: vertical;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Trainings-Tracker</h1>
+  <div class="sub">4+1 Upper/Lower · Offline-App · Gewichte mit Verlauf</div>
+</header>
+
+<nav>
+  <button class="active" data-day="upper-a">Upper A</button>
+  <button data-day="lower-a">Lower A</button>
+  <button data-day="upper-b">Upper B</button>
+  <button data-day="lower-b">Lower B</button>
+  <button data-day="schwach">Schwachstellen</button>
+  <button data-day="info">Info</button>
+</nav>
+
+<main id="main"></main>
+
+<script>
+const DAYS = {
+  'upper-a': {
+    title: 'Upper A — Brust + Schultern, schwer',
+    exercises: [
+      {
+        id: 'ua-machine-chest',
+        name: 'Maschinen-Brustpresse',
+        sets: 3, reps: '6-8', rir: '1-2',
+        note: 'Maschine gleicht langen Hebelarm aus'
+      },
+      {
+        id: 'ua-incline-smith',
+        name: 'Schrägbank-Brustpresse (Scheiben)',
+        sets: 3, reps: '8-10', rir: '1-2',
+        note: 'Maschine gleicht langen Hebelarm aus. Brust isoliert.'
+      },
+      {
+        id: 'ua-cable-flys',
+        name: 'Kabel-Flys (hoch)',
+        sets: 3, reps: '12-15', rir: '0',
+        ssGroup: 1,
+        note: 'Reine Isolation, null Hebelarm-Nachteil'
+      },
+      {
+        id: 'ua-db-shoulder',
+        name: 'Schulterdrücken sitzend (KH)',
+        sets: 3, reps: '8-10', rir: '1-2',
+        ssGroup: 1,
+        note: 'Kurzhanteln = natuerlichere Schulterbahn'
+      },
+      {
+        id: 'ua-lateral',
+        name: 'Seitheben (KH)',
+        sets: 4, reps: '12-15', rir: '0',
+        note: 'NICHT VERHANDELBAR. 4 Saetze, kurze Pause.'
+      },
+      {
+        id: 'ua-triceps-rope',
+        name: 'Trizeps-Drücken (Seil)',
+        sets: 3, reps: '10-12', rir: '1'
+      },
+      {
+        id: 'ua-face-pulls',
+        name: 'Gesichtszug (Face Pulls)',
+        sets: 3, reps: '15-20', rir: '0'
+      }
+    ]
+  },
+  'lower-a': {
+    title: 'Lower A — Quad + Knie-Reha',
+    exercises: [
+      {
+        id: 'la-bulgarian',
+        name: 'Bulgarische Split-Squats',
+        sets: 3, reps: '8-10', rir: '2',
+        note: 'RECHTS ZUERST. Schwaecheres Bein diktiert Wdh.'
+      },
+      {
+        id: 'la-legpress',
+        name: 'Beinpresse (einseitig)',
+        sets: 3, reps: '10-12', rir: '1',
+        note: 'Jedes Bein einzeln. Defizit-Seite gibt Load vor.'
+      },
+      {
+        id: 'la-lunges',
+        name: 'Ausfallschritte gehen (KH)',
+        sets: 3, reps: '12 Schritte', rir: '1'
+      },
+      {
+        id: 'la-extensions',
+        name: 'Beinstrecker (Maschine)',
+        sets: 3, reps: '12-15', rir: '0-1'
+      },
+      {
+        id: 'la-slrdl',
+        name: 'Einbeiniges Kreuzheben (KH)',
+        sets: 3, reps: '10/Seite', rir: '2',
+        ssGroup: 1,
+        note: 'Hamstrings + Sprunggelenk-Stabilitaet'
+      },
+      {
+        id: 'la-tibialis',
+        name: 'Schienbeinheben (Tibialis)',
+        sets: 3, reps: '15-20', rir: '0',
+        ssGroup: 1,
+        note: 'Schienbein — nach Sprunggelenk-Riss essenziell'
+      },
+    ]
+  },
+  'upper-b': {
+    title: 'Upper B — Ruecken + Arme, Volumen',
+    exercises: [
+      {
+        id: 'ub-lat-pulldown',
+        name: 'Latzug (enger Griff)',
+        sets: 4, reps: '6-10', rir: '1-2',
+        note: 'Breite. Klimmzuege erst wenn +15kg sauber.'
+      },
+      {
+        id: 'ub-tbar',
+        name: 'Schrägbank-KH-Rudern (Incline DB Row)',
+        sets: 3, reps: '8-10', rir: '1'
+      },
+      {
+        id: 'ub-cable-flys-flach',
+        name: 'Kabel-Flys (flach)',
+        sets: 3, reps: '12-15', rir: '1',
+        note: 'Brust-Isolation — 2. Brust-Reiz der Woche (Upper A = schwer, hier Volumen)'
+      },
+      {
+        id: 'ub-cable-row',
+        name: 'Kabelrudern sitzend (V-Griff)',
+        sets: 3, reps: '10-12', rir: '1',
+        ssGroup: 1
+      },
+      {
+        id: 'ub-ez-curl',
+        name: 'Curls mit EZ-Stange',
+        sets: 3, reps: '8-10', rir: '1',
+        ssGroup: 1,
+        note: 'Bizeps schwer'
+      },
+      {
+        id: 'ub-incline-curl',
+        name: 'Schrägbank-Curls (KH)',
+        sets: 3, reps: '10-12', rir: '0',
+        ssGroup: 2,
+        note: 'Bizeps in Dehnung = mehr Hypertrophie-Reiz'
+      },
+      {
+        id: 'ub-overhead-tri',
+        name: 'Trizepsstrecken über Kopf (Kabel)',
+        sets: 3, reps: '10-12', rir: '0',
+        ssGroup: 2,
+        note: 'Langer Trizeps-Kopf'
+      },
+      {
+        id: 'ub-preacher',
+        name: 'Priestercurls',
+        sets: 2, reps: '12-15', rir: '0',
+        note: 'Finisher, konstante Spannung'
+      }
+    ]
+  },
+  'lower-b': {
+    title: 'Lower B — Posterior Chain + Sprunggelenk',
+    exercises: [
+      {
+        id: 'lb-rdl',
+        name: 'Rumänisches Kreuzheben (Langhantel)',
+        sets: 4, reps: '8-10', rir: '1-2',
+        note: 'Huefte nach hinten, Ruecken gerade, Spannung halten'
+      },
+      {
+        id: 'lb-hip-thrust',
+        name: 'Beckenheben (Hip Thrusts, Bank + LH)',
+        sets: 3, reps: '10-12', rir: '1',
+        note: 'Glutes entlasten Knie — essenziell fuer Stabilitaet'
+      },
+      {
+        id: 'lb-leg-curl',
+        name: 'Beinbeuger sitzend',
+        sets: 3, reps: '10-12', rir: '0-1',
+        ssGroup: 1
+      },
+      {
+        id: 'lb-calf',
+        name: 'Wadenheben (einseitig)',
+        sets: 4, reps: '12-15', rir: '0',
+        ssGroup: 1,
+        note: 'Jedes Bein einzeln. Volle ROM, Dehnung unten 2s halten.'
+      },
+      {
+        id: 'lb-zirkel',
+        name: 'Sprunggelenk-Zirkel (1 Runde, Erhalt)',
+        sets: 1, reps: 'siehe unten', rir: '-',
+        note: 'Einbeiniges Balancieren 30s/Seite | Sprunggelenk-Mobilität mit Band 10/Seite | Ferse-zu-Zehe-Gehen 20 Schritte'
+      },
+      {
+        id: 'lb-back-ext',
+        name: 'Rückenstrecker (45°)',
+        sets: 3, reps: '12-15', rir: '0'
+      }
+    ]
+  },
+  'schwach': {
+    title: 'Schwachstellen-Tag — Arme, Schultern, Core, Waden',
+    exercises: [
+      {
+        id: 'sw-ez-curl',
+        name: 'Curls mit EZ-Stange',
+        sets: 3, reps: '8-10', rir: '-',
+        ssGroup: 1,
+        note: 'Supersatz A · Tempo 3-0-1-0'
+      },
+      {
+        id: 'sw-overhead-tri',
+        name: 'Trizepsstrecken über Kopf (Kabel, Seil)',
+        sets: 3, reps: '10-12', rir: '-',
+        ssGroup: 1,
+        note: 'Supersatz A · Tempo 3-0-1-0'
+      },
+      {
+        id: 'sw-incline-curl',
+        name: 'Schrägbank-Curls (KH)',
+        sets: 3, reps: '10-12', rir: '-',
+        ssGroup: 2,
+        note: 'Supersatz B · Tempo 4-0-2-0 (langsam in Dehnung!)'
+      },
+      {
+        id: 'sw-pushdowns',
+        name: 'Trizeps-Drücken (Stange)',
+        sets: 3, reps: '10-12', rir: '-',
+        ssGroup: 2,
+        note: 'Supersatz B · Tempo 2-0-1-1'
+      },
+      {
+        id: 'sw-lateral',
+        name: 'Seitheben (KH)',
+        sets: 4, reps: '15-20', rir: '-',
+        ssGroup: 3,
+        note: 'Supersatz C · Tempo 2-0-1-0'
+      },
+      {
+        id: 'sw-face-pulls',
+        name: 'Gesichtszug (Face Pulls)',
+        sets: 4, reps: '15-20', rir: '-',
+        ssGroup: 3,
+        note: 'Supersatz C · Tempo 2-1-1-0'
+      },
+      {
+        id: 'sw-knee-raises',
+        name: 'Hängende Knieheben',
+        sets: 3, reps: '12-15', rir: '-',
+        ssGroup: 4,
+        note: 'Supersatz D · Langsam ausfuehren'
+      },
+      {
+        id: 'sw-cable-crunch',
+        name: 'Kabel-Crunches (kniend, Seil)',
+        sets: 3, reps: '15-20', rir: '-',
+        ssGroup: 4,
+        note: 'Supersatz D · Tempo 2-0-1-0'
+      },
+      {
+        id: 'sw-calf',
+        name: 'Wadenheben (einseitig)',
+        sets: 3, reps: '15-20', rir: '-',
+        ssGroup: 5,
+        note: 'Supersatz E · Tempo 2-2-1-0'
+      },
+      {
+        id: 'sw-tibialis',
+        name: 'Schienbeinheben (Tibialis)',
+        sets: 3, reps: '15-20', rir: '-',
+        ssGroup: 5,
+        note: 'Supersatz E · Tempo 2-0-1-0'
+      }
+    ]
+  },
+  'info': {
+    title: 'Uebersicht',
+    content: true
+  }
+};
+
+const STORAGE_KEY = 'training-tracker-data';
+
+function loadData() {
+  try {
+    return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
+  } catch { return {}; }
+}
+
+function saveData(data) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+}
+
+function getExData(data, exId, setId) {
+  return (data[exId] && data[exId][setId]) ? data[exId][setId] : '';
+}
+
+function getHistory(data) {
+  if (!data.__history__) data.__history__ = [];
+  return data.__history__;
+}
+
+function weightsEqual(a, b) {
+  if (!a || !b) return false;
+  const ka = Object.keys(a), kb = Object.keys(b);
+  if (ka.length !== kb.length) return false;
+  return ka.every(k => String(a[k] ?? '') === String(b[k] ?? ''));
+}
+
+function formatDate(iso) {
+  if (!iso) return '';
+  const p = iso.split('-');
+  return p.length === 3 ? p[2] + '.' + p[1] + '.' + p[0] : iso;
+}
+
+function maxWeight(entry) {
+  let max = null;
+  Object.values(entry || {}).forEach(v => {
+    const n = parseFloat(String(v).replace(',', '.'));
+    if (!isNaN(n) && (max === null || n > max)) max = n;
+  });
+  return max;
+}
+
+function fmtKg(n) {
+  return String(n).replace('.', ',');
+}
+
+// Letzter gespeicherter Eintrag fuer eine Uebung ("Letztes Mal"-Anzeige)
+function getLastEntry(data, exId) {
+  const hist = getHistory(data);
+  for (let i = hist.length - 1; i >= 0; i--) {
+    const w = hist[i].entries && hist[i].entries[exId];
+    if (w && Object.keys(w).length) return { date: hist[i].date, weights: w };
+  }
+  return null;
+}
+
+// Letzter Eintrag mit ANDEREN Werten als dem aktuellen Stand (Steigerungs-Vergleich)
+function getPrevEntry(data, exId, currentWeights) {
+  const hist = getHistory(data);
+  for (let i = hist.length - 1; i >= 0; i--) {
+    const w = hist[i].entries && hist[i].entries[exId];
+    if (w && Object.keys(w).length && !weightsEqual(w, currentWeights)) return { date: hist[i].date, weights: w };
+  }
+  return null;
+}
+
+function lastDatesForDay(data, dayKey, n) {
+  return getHistory(data).filter(h => h.day === dayKey).slice(-n).map(h => h.date);
+}
+
+function migrateData(data) {
+  // Bestehende aktuelle Werte (ohne Verlauf) als ersten History-Eintrag uebernehmen
+  const hist = getHistory(data);
+  if (hist.length) return;
+  const entries = {};
+  let hasAny = false;
+  Object.keys(data).forEach(k => {
+    if (k === '__dates__' || k === '__history__') return;
+    if (data[k] && typeof data[k] === 'object' && Object.keys(data[k]).length) {
+      entries[k] = data[k];
+      hasAny = true;
+    }
+  });
+  if (hasAny) {
+    hist.push({ date: new Date().toISOString().slice(0, 10), day: 'migration', entries });
+  }
+}
+
+function updateDelta(exId) {
+  const el = document.getElementById('last-' + exId);
+  if (!el || !window.__prevMax || !window.__prevMax[exId]) return;
+  const panel = el.closest('.day-panel');
+  let curMax = null;
+  panel.querySelectorAll('.weight-input[data-ex="' + exId + '"]').forEach(inp => {
+    const n = parseFloat(inp.value.replace(',', '.'));
+    if (!isNaN(n) && (curMax === null || n > curMax)) curMax = n;
+  });
+  const badge = el.querySelector('.delta');
+  if (!badge) return;
+  if (curMax === null) { badge.className = 'delta'; badge.textContent = ''; return; }
+  const diff = curMax - window.__prevMax[exId];
+  const d = window.__prevMaxDate && window.__prevMaxDate[exId] ? ' ggü. ' + window.__prevMaxDate[exId] : '';
+  if (diff > 0.001) { badge.className = 'delta up'; badge.textContent = '↑ +' + fmtKg(diff) + ' kg' + d; }
+  else if (diff < -0.001) { badge.className = 'delta down'; badge.textContent = '↓ ' + fmtKg(diff) + ' kg' + d; }
+  else { badge.className = 'delta same'; badge.textContent = '= gleich' + d; }
+}
+
+function renderDay(dayKey) {
+  const day = DAYS[dayKey];
+
+  // Info tab: static content, no inputs
+  if (day.content) {
+    return `<div class="day-panel active" id="panel-info">
+      <div class="info-card">
+        <h2>Wochenplan</h2>
+        <div class="week-grid">
+          <div><strong>Mo</strong><br>Upper A</div>
+          <div><strong>Di</strong><br>Lower A</div>
+          <div class="rest"><strong>Mi</strong><br>FREI</div>
+          <div><strong>Do</strong><br>Upper B</div>
+          <div><strong>Fr</strong><br>Lower B</div>
+          <div><strong>Sa</strong><br>Schwachst.</div>
+          <div class="rest"><strong>So</strong><br>FREI</div>
+        </div>
+      </div>
+      <div class="info-card">
+        <h2>Die 5 nicht verhandelbaren Regeln</h2>
+        <ol class="rules-list">
+          <li><strong>Kein Defizit</strong> — 200 kcal Ueberschuss</li>
+          <li><strong>140g Protein/Tag</strong> — Shake + Quark + Abendessen</li>
+          <li><strong>Direkt ins Gym</strong> — nicht erst nach Hause</li>
+          <li><strong>Rechtes Bein ZUERST</strong> — bei unilateralen Uebungen</li>
+          <li><strong>Seitheben 2x/Woche</strong> — 4 Saetze, keine Ausreden</li>
+        </ol>
+      </div>
+      <div class="info-card">
+        <h2>Progression (12 Wochen)</h2>
+        <table class="info-table">
+          <tr><th>Phase</th><th>Woche</th><th>RIR</th><th>Fokus</th></tr>
+          <tr><td>Akkumulation</td><td>1–4</td><td>1–2</td><td>+1 Wdh. ODER +2,5 kg/Woche</td></tr>
+          <tr><td>Intensivierung</td><td>5–8</td><td>0–1</td><td>Belastungsgrenze</td></tr>
+          <tr><td>Deload</td><td>9</td><td>4–5</td><td>50% Gewicht, volle Wdh.</td></tr>
+          <tr><td>Peak</td><td>10–12</td><td>0</td><td>Neue PRs jagen</td></tr>
+        </table>
+      </div>
+      <div class="info-card">
+        <h2>Ernaehrung — Hand-Regel</h2>
+        <div class="hand-rule">
+          <div><span class="hand-icon">1</span> Handflaeche Protein<br><small>150–180g (Haehnchen, Fisch, Tofu)</small></div>
+          <div><span class="hand-icon">1</span> Faust Kohlenhydrate<br><small>200–250g gekocht (Reis, Kartoffeln)</small></div>
+          <div><span class="hand-icon">2</span> Faeuste Gemuese<br><small>200–300g (Brokkoli, Spinat, Paprika)</small></div>
+          <div><span class="hand-icon">1</span> Daumen Fett<br><small>1 EL Oel, Butter, Avocado</small></div>
+        </div>
+      </div>
+      <div class="info-card">
+        <h2>Cardio</h2>
+        <table class="info-table">
+          <tr><th>Tag</th><th>Dauer</th><th>Intensitaet</th></tr>
+          <tr><td>Upper-Tage</td><td>20 Min</td><td>10–12% Steigung, zuegig (HF 120–140)</td></tr>
+          <tr><td>Lower-Tage</td><td>15 Min</td><td>3–5% Steigung, Recovery</td></tr>
+        </table>
+      </div>
+      <div class="info-card">
+        <h2>Tempo-Code</h2>
+        <p class="tempo-desc">3-0-1-0 = 3s exzentrisch (runter) | 0s Pause unten | 1s konzentrisch (hoch) | 0s Pause oben</p>
+        <p class="tempo-hint">Exzentrisch (runter) immer langsam — da waechst der Muskel.</p>
+      </div>
+      <div class="info-card">
+        <h2>Backup — Gewichte sichern</h2>
+        <p style="font-size:0.72rem;color:var(--text-dim);">Speichert alle Gewichte als Text (z.B. per Telegram an dich selbst schicken). Wichtig bei Gerätewechsel oder Neuinstallation.</p>
+        <div class="btn-row" style="margin-top:10px;">
+          <button class="btn primary" onclick="exportBackup()">Sichern</button>
+          <button class="btn" onclick="importBackup()">Wiederherstellen</button>
+        </div>
+        <textarea class="backup-area" id="backup-area" placeholder="Backup erscheint hier nach Klick auf 'Sichern'. Zum Wiederherstellen: Backup-Text hier einfügen, dann 'Wiederherstellen'."></textarea>
+      </div>
+    </div>`;
+  }
+  const data = loadData();
+  const today = new Date().toISOString().slice(0,10);
+  const dayData = data['__dates__'] || {};
+  const lastDate = dayData[dayKey] || null;
+
+  let html = `<div class="day-panel active" id="panel-${dayKey}">`;
+  const lastDates = lastDatesForDay(data, dayKey, 3).map(formatDate);
+  const dateInfo = lastDates.length ? lastDates.join(' · ') : (lastDate ? formatDate(lastDate) : 'noch nie');
+  html += `<div class="date-row"><span>Letzte Trainings:</span> <strong>${dateInfo}</strong></div>`;
+
+  let prevSsGroup = 0;
+  day.exercises.forEach(ex => {
+    const isSuperset = ex.ssGroup > 0;
+    const cardClass = isSuperset ? 'ex-card superset' : 'ex-card';
+    let ssBadge = '';
+    let ssHint = '';
+    if (isSuperset) {
+      ssBadge = `<div class="superset-badge">↔ Supersatz ${ex.ssGroup}</div>`;
+      if (prevSsGroup === ex.ssGroup) {
+        ssHint = `<div class="superset-hint">Im Wechsel mit der Übung darüber ausführen</div>`;
+      }
+      prevSsGroup = ex.ssGroup;
+    } else {
+      prevSsGroup = 0;
+    }
+    html += `<div class="${cardClass}">`;
+    if (ssBadge) html += ssBadge;
+
+    // Verlauf: "Letztes Mal"-Anzeige + Steigerungs-Vergleich
+    const cur = (data[ex.id] && typeof data[ex.id] === 'object') ? data[ex.id] : {};
+    const lastE = getLastEntry(data, ex.id);
+    const prevE = getPrevEntry(data, ex.id, cur);
+    let lastLine = '';
+    if (lastE) {
+      const wStr = Object.values(lastE.weights).filter(v => String(v).trim() !== '').join(' · ');
+      if (wStr) {
+        // Vergleichsbasis: letzter Eintrag mit abweichenden Werten, sonst der angezeigte Eintrag
+        const base = prevE || lastE;
+        const baseMax = maxWeight(base.weights);
+        const baseDate = formatDate(base.date);
+        const curMax = maxWeight(cur);
+        let txt = '', cls = 'same';
+        if (baseMax !== null && curMax !== null) {
+          const diff = curMax - baseMax;
+          if (diff > 0.001) { txt = '↑ +' + fmtKg(diff) + ' kg ggü. ' + baseDate; cls = 'up'; }
+          else if (diff < -0.001) { txt = '↓ ' + fmtKg(diff) + ' kg ggü. ' + baseDate; cls = 'down'; }
+          else { txt = '= gleich ggü. ' + baseDate; cls = 'same'; }
+        }
+        // Ohne echten Vor-Vergleich erst beim Tippen anzeigen (sonst irrefuehrend)
+        if (!prevE) txt = '';
+        window.__prevMax = window.__prevMax || {};
+        window.__prevMaxDate = window.__prevMaxDate || {};
+        window.__prevMax[ex.id] = baseMax;
+        window.__prevMaxDate[ex.id] = baseDate;
+        const deltaHtml = '<span class="delta ' + cls + '">' + txt + '</span>';
+        lastLine = '<div class="last-sets" id="last-' + ex.id + '">Letztes Mal (' + formatDate(lastE.date) + '): <strong>' + wStr + ' kg</strong> ' + deltaHtml + '</div>';
+      }
+    }
+    html += `<div class="ex-header">`;
+    html += `<div class="ex-name">${ex.name}</div>`;
+    html += `<div class="ex-meta">${ex.sets} x ${ex.reps}<br><span class="rir">RIR ${ex.rir}</span></div>`;
+    html += `</div>`;
+    if (ex.note) {
+      html += `<div class="ex-note">${ex.note}</div>`;
+    }
+    if (lastLine) html += lastLine;
+    html += `<div class="sets-row">`;
+    for (let s = 1; s <= ex.sets; s++) {
+      const val = getExData(data, ex.id, s);
+      const filledClass = val ? ' filled' : '';
+      html += `<div class="set-input">`;
+      html += `<label>${s}. Satz</label>`;
+      html += `<input type="text" inputmode="decimal" class="weight-input${filledClass}" 
+                data-ex="${ex.id}" data-set="${s}" 
+                placeholder="kg" value="${val}">`;
+      html += `</div>`;
+    }
+    html += `</div>`;
+    if (ssHint) html += ssHint;
+    html += `</div>`;
+  });
+
+  html += `<div class="btn-row">
+    <button class="btn primary" onclick="saveCurrentDay('${dayKey}')">Speichern</button>
+    <button class="btn" onclick="clearCurrentDay('${dayKey}')">Leeren</button>
+    <button class="btn danger" onclick="resetAll()">Alle Daten loeschen</button>
+  </div>`;
+
+  html += `<div class="legend">
+    <span><span class="dot g"></span> ausgefüllt = gespeichert</span>
+    <span><span class="dot o"></span> Punkt orange = ungespeichert</span>
+    <span><span class="dot b"></span> RIR = Reps in Reserve</span><br>
+    <span><span class="ss-symbol">↔</span> orange Umrandung + Badge = Supersatz (2 Übungen im Wechsel, gleiche Nummer = Paar)</span>
+  </div>`;
+
+  html += `</div>`;
+  return html;
+}
+
+function renderAll() {
+  const data = loadData();
+  migrateData(data);
+  saveData(data);
+  const main = document.getElementById('main');
+  main.innerHTML = '';
+  Object.keys(DAYS).forEach(key => {
+    main.innerHTML += renderDay(key);
+  });
+  // Show active day
+  const activeDay = document.querySelector('nav button.active').dataset.day;
+  showDay(activeDay);
+  attachInputListeners();
+}
+
+function showDay(dayKey) {
+  document.querySelectorAll('.day-panel').forEach(p => p.classList.remove('active'));
+  const panel = document.getElementById('panel-' + dayKey);
+  if (panel) panel.classList.add('active');
+}
+
+function attachInputListeners() {
+  document.querySelectorAll('.weight-input').forEach(input => {
+    input.addEventListener('input', function() {
+      if (this.value) {
+        this.classList.add('filled');
+      } else {
+        this.classList.remove('filled');
+      }
+      updateDelta(this.dataset.ex);
+    });
+  });
+}
+
+function saveCurrentDay(dayKey) {
+  const data = loadData();
+  const today = new Date().toISOString().slice(0,10);
+
+  // Init dates
+  if (!data['__dates__']) data['__dates__'] = {};
+  data['__dates__'][dayKey] = today;
+
+  // Save each input + History-Eintrag
+  const panel = document.getElementById('panel-' + dayKey);
+  if (!panel) return;
+  const entries = {};
+  panel.querySelectorAll('.weight-input').forEach(input => {
+    const exId = input.dataset.ex;
+    const setId = input.dataset.set;
+    const val = input.value.trim();
+    if (!data[exId]) data[exId] = {};
+    data[exId][setId] = val;
+    if (!entries[exId]) entries[exId] = {};
+    entries[exId][setId] = val;
+  });
+
+  // Kein Duplikat anlegen (gleicher Tag + gleiche Werte wie letzter Eintrag)
+  const hist = getHistory(data);
+  const last = hist[hist.length - 1];
+  const isDup = last && last.day === dayKey && last.date === today && weightsEqual(last.entries, entries);
+  if (!isDup) {
+    hist.push({ date: today, day: dayKey, entries });
+  }
+
+  saveData(data);
+  renderAll();
+
+  // Flash feedback
+  const btn = document.querySelector('#panel-' + dayKey + ' .btn.primary');
+  if (btn) {
+    const orig = btn.textContent;
+    btn.textContent = '✓ Gespeichert!';
+    btn.style.background = '#4a6e4a';
+    setTimeout(() => {
+      btn.textContent = orig;
+      btn.style.background = '';
+    }, 1200);
+  }
+}
+
+function clearCurrentDay(dayKey) {
+  if (!confirm('Alle Gewichte fuer diesen Tag loeschen?')) return;
+  const data = loadData();
+  const day = DAYS[dayKey];
+  day.exercises.forEach(ex => {
+    if (data[ex.id]) delete data[ex.id];
+  });
+  if (data['__dates__']) delete data['__dates__'][dayKey];
+  saveData(data);
+  renderAll();
+}
+
+function resetAll() {
+  if (!confirm('ALLE gespeicherten Daten unwiderruflich loeschen?')) return;
+  localStorage.removeItem(STORAGE_KEY);
+  renderAll();
+}
+
+function exportBackup() {
+  const ta = document.getElementById('backup-area');
+  const raw = localStorage.getItem(STORAGE_KEY) || '{}';
+  ta.value = raw;
+  ta.focus();
+  ta.select();
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(raw).then(() => flashBackupBtn('✓ Kopiert!'), () => {});
+    } else {
+      document.execCommand('copy');
+      flashBackupBtn('✓ Kopiert!');
+    }
+  } catch (e) {
+    flashBackupBtn('Text markiert — manuell kopieren');
+  }
+}
+
+function flashBackupBtn(msg) {
+  const ta = document.getElementById('backup-area');
+  if (!ta) return;
+  const card = ta.closest('.info-card');
+  const btn = card.querySelector('.btn.primary');
+  const orig = btn.textContent;
+  btn.textContent = msg;
+  setTimeout(() => { btn.textContent = orig; }, 1500);
+}
+
+function importBackup() {
+  const ta = document.getElementById('backup-area');
+  const raw = ta.value.trim();
+  if (!raw) {
+    alert('Kein Backup-Text im Feld. Erst ein Backup einfügen (oder vorher "Sichern" drücken).');
+    return;
+  }
+  let parsed;
+  try { parsed = JSON.parse(raw); } catch (e) { alert('Ungültiges Backup-Format.'); return; }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) { alert('Ungültiges Backup-Format.'); return; }
+  if (!confirm('Aktuelle Daten werden durch das Backup ERSETZT. Fortfahren?')) return;
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
+  renderAll();
+  ta.value = '';
+  alert('Backup wiederhergestellt!');
+}
+
+// Tab switching
+document.querySelectorAll('nav button').forEach(btn => {
+  btn.addEventListener('click', function() {
+    document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+    this.classList.add('active');
+    showDay(this.dataset.day);
+  });
+});
+
+// Initial render
+renderAll();
+
+// PWA: Offline-Cache registrieren (funktioniert nur über http/https, nicht bei file://)
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+  window.addEventListener('load', function() {
+    navigator.serviceWorker.register('./sw.js').catch(function() {});
+  });
+}
+</script>
+
+</body>
+</html>
