@@ -1,9 +1,10 @@
 /* Trainings-Tracker Service Worker — Offline-Cache */
-const CACHE = 'trainings-tracker-v2';
+const CACHE = 'trainings-tracker-v3';
 const ASSETS = [
   './',
   './index.html',
   './manifest.webmanifest',
+  './icon-180.png',
   './icon-192.png',
   './icon-512.png'
 ];
