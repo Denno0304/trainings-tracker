@@ -188,6 +188,7 @@
   .deload-banner .dl-text small { display:block; color:var(--text-dim); font-weight:400; font-size:0.66rem; margin-top:2px; }
   /* Wochen-Vorschau */
   .week-preview { display:grid; grid-template-columns:repeat(4,1fr); gap:6px; margin-bottom:12px; }
+  .week-preview.wp-five { grid-template-columns:repeat(5,1fr); }
   .wp-cell {
     background:var(--surface); border:1px solid var(--border); border-radius:12px;
     padding:10px 4px; text-align:center; cursor:pointer; transition: all 0.15s;
@@ -790,6 +791,28 @@ function migrateData(data) {
 
 const ROTATION = ['upper-a', 'lower-a', 'upper-b', 'lower-b'];
 
+/* Woche komplett? Alle 4 Einheiten in der aktuellen Kalenderwoche (Mo–So) gemacht */
+function weekDone(data) {
+  const wk = weekKey(new Date().toISOString().slice(0, 10));
+  const done = new Set();
+  getHistory(data).forEach(h => {
+    if (ROTATION.includes(h.day) && weekKey(h.date) === wk) done.add(h.day);
+  });
+  return ROTATION.every(k => done.has(k));
+}
+
+/* Schwachstellen-Tag diese Woche schon gemacht? */
+function schwachDone(data) {
+  const wk = weekKey(new Date().toISOString().slice(0, 10));
+  return getHistory(data).some(h => h.day === 'schwach' && weekKey(h.date) === wk);
+}
+
+/* Kurz-Label ("Upper A" → "A", "Schwachstellen" → "Schwachstellen") */
+function shortLabel(dayKey) {
+  const parts = DAY_LABEL[dayKey].split(' ');
+  return parts[1] || parts[0];
+}
+
 function rotationIndex(data) {
   const r = data.__rotation__;
   const i = r && typeof r.index === 'number' ? r.index : 0;
@@ -797,15 +820,21 @@ function rotationIndex(data) {
 }
 
 function currentRotationDay(data) {
+  // Schwachstellen-Tag automatisch dran, wenn alle 4 Einheiten diese Woche fertig sind
+  if (weekDone(data) && !schwachDone(data)) return 'schwach';
   return ROTATION[rotationIndex(data)];
 }
 
 function nextRotationAfter(dayKey) {
+  if (dayKey === 'schwach') return 'upper-a';
+  const data = loadData();
+  if (dayKey === 'lower-b' && weekDone(data) && !schwachDone(data)) return 'schwach';
   const i = ROTATION.indexOf(dayKey);
   return ROTATION[(i + 1) % ROTATION.length];
 }
 
 function advanceRotation(data) {
+  // Schwachstellen abgeschlossen → neue Runde beginnt mit Upper A
   const next = (rotationIndex(data) + 1) % ROTATION.length;
   data.__rotation__ = { index: next, lastFinish: new Date().toISOString().slice(0, 10) };
   saveData(data);
@@ -825,18 +854,22 @@ function trainingCount(data) {
 
 function weekPreviewHtml(data) {
   const cur = currentRotationDay(data);
-  const done = data.__done__ || {};
   const hist = getHistory(data);
   const today = new Date().toISOString().slice(0, 10);
-  const doneToday = hist.some(h => h.date === today && ROTATION.includes(h.day));
-  let html = '<div class="week-preview">';
+  const doneToday = hist.some(h => h.date === today && (ROTATION.includes(h.day) || h.day === 'schwach'));
+  const showSchwach = weekDone(data) && !schwachDone(data) && cur === 'schwach';
+  let html = '<div class="week-preview' + (showSchwach ? ' wp-five' : '') + '">';
   ROTATION.forEach(function(k) {
     const isNow = k === cur;
     const doneCls = doneToday && isNow ? ' wp-done' : '';
     html += '<div class="wp-cell' + (isNow ? ' wp-now' : '') + doneCls + '" onclick="jumpToDay(\'' + k + '\')">' +
-      '<div class="wp-day">' + DAY_LABEL[k].split(' ')[1] + '</div>' +
+      '<div class="wp-day">' + shortLabel(k) + '</div>' +
       '<div class="wp-name">' + DAY_LABEL[k] + '</div></div>';
   });
+  // Schwachstellen als 5. Einheit, wenn Woche komplett
+  html += '<div class="wp-cell' + (cur === 'schwach' ? ' wp-now' : '') + (doneToday && cur === 'schwach' ? ' wp-done' : '') + '" onclick="jumpToDay(\'schwach\')">' +
+    '<div class="wp-day">+</div>' +
+    '<div class="wp-name">Schwachst.</div></div>';
   html += '</div>';
   return html;
 }
@@ -847,7 +880,7 @@ function renderTodayHero() {
   const label = DAY_LABEL[cur];
   const today = new Date().toISOString().slice(0, 10);
   const hist = getHistory(data);
-  const doneToday = hist.some(h => h.date === today && ROTATION.includes(h.day));
+  const doneToday = hist.some(h => h.date === today && (ROTATION.includes(h.day) || h.day === 'schwach'));
   const lastDate = hist.length ? hist[hist.length - 1].date : null;
 
   let html = '<div class="today-hero' + (doneToday ? ' th-done' : '') + '">';
@@ -856,7 +889,7 @@ function renderTodayHero() {
   html += '<div class="th-title">' + (doneToday ? label + ' — geschafft! 🎉' : label) + '</div>';
   html += '<div class="th-sub">' + fmtDateDE(new Date()) + (lastDate ? ' · Letztes Training: ' + formatDate(lastDate) : '') + '</div>';
   html += '</div>';
-  html += '<div class="th-badge">' + label.split(' ')[1] + '</div>';
+  html += '<div class="th-badge">' + shortLabel(cur) + '</div>';
   html += '</div>';
   html += weekPreviewHtml(data);
   html += '<div class="stat-row">' +
@@ -1207,7 +1240,7 @@ function renderDay(dayKey) {
   });
 
   html += '<div class="btn-row">';
-  if (ROTATION.includes(dayKey)) {
+  if (ROTATION.includes(dayKey) || dayKey === 'schwach') {
     html += '<button class="btn primary" onclick="finishTraining(\'' + dayKey + '\')">Training fertig — weiter zu ' + DAY_LABEL[nextRotationAfter(dayKey)] + '</button>';
   } else {
     html += '<button class="btn primary" onclick="saveCurrentDay(\'' + dayKey + '\')">Training speichern</button>';
@@ -1508,10 +1541,17 @@ function saveCurrentDay(dayKey) {
 
 function finishTraining(dayKey) {
   saveCurrentDay(dayKey);
-  // Nur Rotationseinheiten schalten automatisch weiter (Schwachstellen = optional)
-  if (!ROTATION.includes(dayKey)) return;
+  // Rotationseinheiten + Schwachstellen schalten weiter (Schwachstellen = optional, nur nach kompletter Woche)
+  if (!ROTATION.includes(dayKey) && dayKey !== 'schwach') return;
   const data = loadData();
-  const next = advanceRotation(data);
+  const next = nextRotationAfter(dayKey);
+  if (dayKey === 'schwach') {
+    // Nach Schwachstellen: neue Runde starten (zurück zu Upper A)
+    data.__rotation__ = { index: 0, lastFinish: new Date().toISOString().slice(0, 10) };
+    saveData(data);
+  } else {
+    advanceRotation(data);
+  }
   document.querySelectorAll('nav button').forEach(function(b) { b.classList.remove('active'); });
   const btn = document.querySelector('nav button[data-day="' + next + '"]');
   if (btn) btn.classList.add('active');
