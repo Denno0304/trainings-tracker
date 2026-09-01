@@ -466,6 +466,64 @@
   .wk-same { color:var(--text-dim); font-weight:600; }
   .week-empty { font-size:0.74rem; color:var(--text-dim); margin-bottom:8px; }
   .week-hint { font-size:0.66rem; color:var(--accent); margin-top:6px; font-style:italic; }
+
+  /* --- WOCHEN-FORTSCHRITTSBALKEN --- */
+  .week-bar-wrap { margin-bottom:12px; }
+  .week-bar-top { display:flex; justify-content:space-between; align-items:center; font-size:0.68rem; color:var(--text-dim); margin-bottom:5px; }
+  .week-bar-top strong { color:var(--text-bright); font-size:0.74rem; }
+  .week-bar { display:flex; gap:4px; }
+  .week-seg {
+    flex:1; height:10px; border-radius:5px;
+    background:var(--surface2); border:1px solid var(--border);
+    transition: all 0.3s ease;
+  }
+  .week-seg.done { background:var(--green); border-color:rgba(127,201,127,0.5); box-shadow:0 0 8px rgba(127,201,127,0.25); }
+  .week-seg.now { background:var(--grad); border-color:transparent; animation: segPulse 1.8s ease infinite; }
+  @keyframes segPulse { 0%,100% { opacity:1; } 50% { opacity:0.55; } }
+  .week-bar-labels { display:flex; gap:4px; margin-top:3px; }
+  .week-bar-labels span { flex:1; text-align:center; font-size:0.55rem; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.04em; }
+
+  /* --- MUSKEL-CHIP --- */
+  .ex-head-row { display:flex; align-items:center; gap:8px; }
+  .muscle-chip {
+    flex:0 0 auto; width:26px; height:26px; border-radius:9px;
+    display:flex; align-items:center; justify-content:center;
+    font-size:0.62rem; font-weight:800; color:#0b0b0f;
+    background: var(--mcolor, var(--gold));
+  }
+
+  /* --- LETZTES MAL PRO SATZ --- */
+  .set-last {
+    font-size:0.55rem; color:var(--text-dim);
+    text-align:center; margin-top:2px; min-height:11px;
+  }
+  .set-last.up { color:var(--green); }
+  .set-last.down { color:var(--red); }
+  .set-last.same { color:var(--text-dim); }
+
+  /* --- TRAININGS-DAUER --- */
+  .duration-chip {
+    display:inline-flex; align-items:center; gap:5px;
+    background:var(--surface2); border:1px solid var(--border);
+    border-radius:999px; padding:4px 10px;
+    font-size:0.66rem; color:var(--text-bright); font-weight:600;
+    font-variant-numeric: tabular-nums;
+  }
+  .duration-chip.live { border-color:var(--accent); color:var(--accent); animation: segPulse 1.8s ease infinite; }
+
+  /* --- REKORDE-LISTE --- */
+  .pr-list { display:flex; flex-direction:column; gap:6px; }
+  .pr-row {
+    display:flex; align-items:center; gap:10px;
+    background:var(--surface2); border:1px solid var(--border);
+    border-radius:10px; padding:9px 12px;
+  }
+  .pr-row .pr-rank { font-size:0.85rem; flex:0 0 auto; }
+  .pr-row .pr-info { flex:1; min-width:0; }
+  .pr-row .pr-name { font-size:0.76rem; color:var(--text-bright); font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .pr-row .pr-date { font-size:0.6rem; color:var(--text-dim); }
+  .pr-row .pr-val { font-size:0.82rem; color:var(--accent); font-weight:800; font-variant-numeric:tabular-nums; }
+  .pr-empty { font-size:0.74rem; color:var(--text-dim); padding:14px; text-align:center; }
 </style>
 </head>
 <body>
@@ -594,7 +652,7 @@ function loadData() {
   // Migration: alte String-Werte → {w,r}
   let changed = false;
   Object.keys(data).forEach(k => {
-    if (k === '__dates__' || k === '__history__' || k === '__done__' || k === '__rotation__') return;
+    if (k === '__dates__' || k === '__history__' || k === '__done__' || k === '__rotation__' || k === '__session__') return;
     if (data[k] && typeof data[k] === 'object') {
       Object.keys(data[k]).forEach(s => {
         const n = normalizeEntry(data[k][s]);
@@ -789,7 +847,7 @@ function migrateData(data) {
   const entries = {};
   let hasAny = false;
   Object.keys(data).forEach(k => {
-    if (k === '__dates__' || k === '__history__' || k === '__done__' || k === '__rotation__') return;
+    if (k === '__dates__' || k === '__history__' || k === '__done__' || k === '__rotation__' || k === '__session__') return;
     if (data[k] && typeof data[k] === 'object' && Object.keys(data[k]).length) {
       entries[k] = data[k];
       hasAny = true;
@@ -887,6 +945,37 @@ function weekPreviewHtml(data) {
   return html;
 }
 
+/* Feature 1: Wochen-Fortschrittsbalken */
+function weekProgress(data) {
+  const wk = weekKey(new Date().toISOString().slice(0, 10));
+  const doneSet = new Set();
+  getHistory(data).forEach(h => {
+    if (weekKey(h.date) === wk && (ROTATION.includes(h.day) || h.day === 'schwach')) doneSet.add(h.day);
+  });
+  // Reihenfolge: 4 Rotationseinheiten + Schwachstellen (wenn Woche komplett)
+  const cur = currentRotationDay(data);
+  const showSchwach = weekDone(data) || cur === 'schwach';
+  const order = showSchwach ? [...ROTATION, 'schwach'] : ROTATION;
+  const doneCount = order.filter(k => doneSet.has(k)).length;
+  let segs = '';
+  order.forEach(k => {
+    let cls = doneSet.has(k) ? ' done' : '';
+    if (k === cur && !doneSet.has(k)) cls += ' now';
+    segs += '<div class="week-seg' + cls + '"></div>';
+  });
+  let labels = '';
+  order.forEach(k => { labels += '<span>' + shortLabel(k) + '</span>'; });
+  const total = order.length;
+  const pct = Math.round(doneCount / total * 100);
+  const doneToday = getHistory(data).some(h => h.date === new Date().toISOString().slice(0, 10) && (ROTATION.includes(h.day) || h.day === 'schwach'));
+  const status = doneToday ? '✓ Woche läuft' : (doneCount === total ? '✓ Woche komplett!' : 'Woche läuft');
+  return '<div class="week-bar-wrap">' +
+    '<div class="week-bar-top"><strong>' + status + '</strong><span>' + doneCount + '/' + total + ' Einheiten (' + pct + '%)</span></div>' +
+    '<div class="week-bar">' + segs + '</div>' +
+    '<div class="week-bar-labels">' + labels + '</div>' +
+    '</div>';
+}
+
 function renderTodayHero() {
   const data = loadData();
   const cur = currentRotationDay(data);
@@ -904,7 +993,9 @@ function renderTodayHero() {
   html += '</div>';
   html += '<div class="th-badge">' + shortLabel(cur) + '</div>';
   html += '</div>';
+  html += renderDurationChip();
   html += weekPreviewHtml(data);
+  html += weekProgress(data);
   html += '<div class="stat-row">' +
     '<div class="stat-chip"><div class="sc-val">' + trainingCount(data) + '</div><div class="sc-label">Trainings</div></div>' +
     '<div class="stat-chip"><div class="sc-val">' + ROTATION.length + '</div><div class="sc-label">Einheiten</div></div>' +
@@ -1077,9 +1168,62 @@ function fmtTime(s) {
 let __saveTimer = null;
 
 function autoSave() {
+  // Feature 8: Session-Start beim ersten Input des Tages
+  startSessionIfNeeded();
   clearTimeout(__saveTimer);
   __saveTimer = setTimeout(saveCurrentState, 500);
 }
+
+/* Feature 8: Trainings-Session (Dauer) */
+function startSessionIfNeeded() {
+  const data = loadData();
+  const today = new Date().toISOString().slice(0, 10);
+  const cur = currentRotationDay(data);
+  const hist = getHistory(data);
+  // Schon heute abgeschlossen? Dann keine neue Session
+  if (hist.some(h => h.date === today && (ROTATION.includes(h.day) || h.day === 'schwach'))) return;
+  if (!data.__session__ || data.__session__.day !== cur || data.__session__.date !== today) {
+    data.__session__ = { day: cur, date: today, startedAt: Date.now() };
+    saveData(data);
+  }
+}
+
+function formatDuration(ms) {
+  if (!ms) return '—';
+  const mins = Math.round(ms / 60000);
+  if (mins < 60) return mins + ' Min.';
+  const h = Math.floor(mins / 60), m = mins % 60;
+  return h + ' Std. ' + m + ' Min.';
+}
+
+/* Dauer-Chip für die Heute-Karte */
+function renderDurationChip() {
+  const data = loadData();
+  const s = data.__session__;
+  const today = new Date().toISOString().slice(0, 10);
+  const hist = getHistory(data);
+  if (hist.some(h => h.date === today && (ROTATION.includes(h.day) || h.day === 'schwach'))) {
+    const last = hist.filter(h => h.date === today).pop();
+    if (last && last.duration_min) {
+      return '<span class="duration-chip">⏱ ' + formatDuration(last.duration_min * 60000) + '</span>';
+    }
+    return '';
+  }
+  if (s && s.date === today && s.startedAt) {
+    return '<span class="duration-chip live" id="live-duration">⏱ ' + formatDuration(Date.now() - s.startedAt) + '</span>';
+  }
+  return '';
+}
+
+/* Live-Timer-Tick: alle 30s die Chip-Anzeige aktualisieren */
+setInterval(function() {
+  const el = document.getElementById('live-duration');
+  if (el) {
+    const data = loadData();
+    const s = data.__session__;
+    if (s && s.startedAt) el.textContent = '⏱ ' + formatDuration(Date.now() - s.startedAt);
+  }
+}, 30000);
 
 function saveCurrentState() {
   const data = loadData();
@@ -1217,7 +1361,12 @@ function renderDay(dayKey) {
     html += '<div class="' + cardClass + '" id="card-' + ex.id + '" style="' + mcolor + '">';
     if (ssBadge) html += ssBadge;
     html += '<div class="ex-header">';
+    html += '<div class="ex-head-row">';
+    // Feature 2: Muskelgruppen-Farbcode als Chip
+    const muscleShort = MUSCLE_LABEL[ex.muscle] ? MUSCLE_LABEL[ex.muscle].charAt(0) : '';
+    html += '<div class="muscle-chip" title="' + (MUSCLE_LABEL[ex.muscle] || '') + '">' + muscleShort + '</div>';
     html += '<div class="ex-name">' + ex.name + '</div>';
+    html += '</div>';
     html += '<div class="ex-actions">';
     if (!locked) {
       html += '<button class="timer-btn" data-ex="' + ex.id + '" onclick="toggleTimer(\'' + ex.id + '\')" title="Pausentimer">⏱</button>';
@@ -1240,16 +1389,36 @@ function renderDay(dayKey) {
     }
 
     html += '<div class="sets-row">';
+    // Feature 3: letzte Gewichte pro Satz (vom letzten Training dieser Übung)
+    const lastBySet = {};
+    if (lastE && lastE.weights) {
+      Object.keys(lastE.weights).forEach(ss => {
+        lastBySet[ss] = normalizeEntry(lastE.weights[ss]);
+      });
+    }
     for (let s = 1; s <= ex.sets; s++) {
       const val = normalizeEntry(getExEntry(data, ex.id)[s]);
       const wFilled = val.w ? ' filled' : '';
       const rFilled = val.r ? ' filled' : '';
+      // Letztes-Mal-Anzeige für diesen Satz
+      let lastTxt = '';
+      if (lastBySet[s] && (lastBySet[s].w || lastBySet[s].r)) {
+        const lw = lastBySet[s].w, lr = lastBySet[s].r;
+        const curW = parseFloat(String(val.w).replace(',', '.'));
+        const lastW = parseFloat(String(lw).replace(',', '.'));
+        let cls = 'same';
+        if (!isNaN(curW) && !isNaN(lastW) && curW > lastW) cls = 'up';
+        else if (!isNaN(curW) && !isNaN(lastW) && curW < lastW) cls = 'down';
+        const lStr = lw + (lr ? '×' + lr : '');
+        lastTxt = '<div class="set-last ' + cls + '">' + (isNaN(curW) ? 'letztes: ' : '') + lStr + '</div>';
+      }
       html += '<div class="set-input">';
       html += '<label>' + s + '. Satz</label>';
       html += '<div class="set-fields">';
       html += '<input type="text" inputmode="decimal" class="weight-input' + wFilled + '" data-ex="' + ex.id + '" data-set="' + s + '" placeholder="kg" value="' + val.w + '"' + (locked ? ' disabled' : '') + '>';
       html += '<input type="text" inputmode="numeric" class="reps-input' + rFilled + '" data-ex="' + ex.id + '" data-set="' + s + '" placeholder="Wdh" value="' + val.r + '"' + (locked ? ' disabled' : '') + '>';
       html += '</div>';
+      html += lastTxt;
       html += '</div>';
     }
     html += '</div>';
@@ -1379,6 +1548,45 @@ function allExercises() {
   return list;
 }
 
+/* Feature 11: Rekord-Liste — Bestwert jeder Übung mit Datum */
+function renderPRList(data) {
+  const hist = getHistory(data);
+  const best = {}; // exId -> { max, date, name }
+  hist.forEach(h => {
+    if (!h.entries) return;
+    Object.keys(h.entries).forEach(exId => {
+      const m = maxWeight(h.entries[exId]);
+      if (m === null) return;
+      if (!best[exId] || m > best[exId].max) {
+        best[exId] = { max: m, date: h.date };
+      }
+    });
+  });
+  const entries = Object.keys(best);
+  if (!entries.length) {
+    return '<div class="info-card"><h2>🏆 Rekorde</h2><div class="pr-empty">Noch keine Rekorde — trag Gewichte ein, dann siehst du hier deine Bestleistungen!</div></div>';
+  }
+  // Nach Bestwert sortieren, Top 8
+  const ranked = entries
+    .map(exId => {
+      const ex = allExercises().find(e => e.id === exId);
+      return { id: exId, name: ex ? ex.name : exId, max: best[exId].max, date: best[exId].date };
+    })
+    .sort((a, b) => b.max - a.max)
+    .slice(0, 8);
+  const medals = ['🥇', '🥈', '🥉', '4.', '5.', '6.', '7.', '8.'];
+  let html = '<div class="info-card"><h2>🏆 Deine Rekorde</h2><div class="pr-list">';
+  ranked.forEach((r, i) => {
+    html += '<div class="pr-row">' +
+      '<span class="pr-rank">' + medals[i] + '</span>' +
+      '<div class="pr-info"><div class="pr-name">' + r.name + '</div><div class="pr-date">' + formatDate(r.date) + '</div></div>' +
+      '<span class="pr-val">' + fmtKg(r.max) + ' kg</span>' +
+      '</div>';
+  });
+  html += '</div></div>';
+  return html;
+}
+
 function renderVerlauf() {
   const exs = allExercises();
   if (!__verlaufEx) __verlaufEx = exs.length ? exs[0].id : null;
@@ -1388,6 +1596,9 @@ function renderVerlauf() {
 
   // Wochen-Zusammenfassung
   html += renderWeekSummary(data);
+
+  // Feature 11: Rekord-Liste (alle PRs)
+  html += renderPRList(data);
 
   html += '<div class="info-card"><h2>' + (__verlaufMetric === 'volume' ? 'Volumen-Verlauf' : 'Gewichts-Verlauf') + '</h2>';
   html += '<div class="metric-toggle">';
@@ -1547,8 +1758,17 @@ function saveCurrentDay(dayKey) {
   const hist = getHistory(data);
   const last = hist[hist.length - 1];
   const isDup = last && last.day === dayKey && last.date === today && entriesEqual(last.entries, entries);
+  // Feature 8: Dauer der Session speichern
+  let durationMin = null;
+  const s = data.__session__;
+  if (s && s.date === today && s.day === dayKey && s.startedAt) {
+    durationMin = Math.max(1, Math.round((Date.now() - s.startedAt) / 60000));
+    delete data.__session__;
+  }
   if (!isDup) {
-    hist.push({ date: today, day: dayKey, entries: entries });
+    hist.push({ date: today, day: dayKey, entries: entries, duration_min: durationMin });
+  } else if (durationMin && last.duration_min === undefined) {
+    last.duration_min = durationMin;
   }
   saveData(data);
   renderAll();
@@ -1709,8 +1929,34 @@ function attachInputListeners() {
       else this.classList.remove('filled');
       updateDelta(this.dataset.ex);
       autoSave();
+      // Feature 6: Auto-Fokus — wenn Gewicht + Wdh. gefüllt, springe zum nächsten leeren Satz
+      focusNextSet(this);
+    });
+    input.addEventListener('focus', function() {
+      // Bei Fokus den Inhalt markieren (schnelles Überschreiben)
+      var self = this;
+      setTimeout(function() { self.select(); }, 10);
     });
   });
+}
+
+/* Feature 6: Cursor zum nächsten leeren Satz der Übung springen */
+function focusNextSet(currentInput) {
+  var panel = currentInput.closest('.day-panel');
+  if (!panel) return;
+  var exId = currentInput.dataset.ex;
+  var setId = currentInput.dataset.set;
+  // Prüfen: ist der aktuelle Satz vollständig (Gewicht + Wdh.)?
+  var weightInp = panel.querySelector('.weight-input[data-ex="' + exId + '"][data-set="' + setId + '"]');
+  var repsInp = panel.querySelector('.reps-input[data-ex="' + exId + '"][data-set="' + setId + '"]');
+  if (!weightInp || !repsInp) return;
+  if (!weightInp.value.trim() || !repsInp.value.trim()) return;
+  // Nächsten Satz finden (gleiche Übung, größere Satz-Nummer, leer)
+  var nextSet = String(parseInt(setId, 10) + 1);
+  var nextWeight = panel.querySelector('.weight-input[data-ex="' + exId + '"][data-set="' + nextSet + '"]');
+  if (nextWeight && !nextWeight.value.trim()) {
+    nextWeight.focus();
+  }
 }
 
 // Tab switching
