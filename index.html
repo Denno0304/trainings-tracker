@@ -351,6 +351,19 @@
   .date-row span { color:var(--text-dim); }
   .date-row strong { color:var(--text-bright); }
 
+  /* --- SPERRE (nicht dran-Tage) --- */
+  .lock-banner {
+    display:flex; align-items:center; gap:8px;
+    background: rgba(142,142,152,0.1); border:1px dashed var(--border);
+    border-radius:12px; padding:10px 14px; margin-bottom:12px;
+    font-size:0.74rem; color:var(--text-dim); line-height:1.5;
+  }
+  .lock-banner strong { color:var(--text-bright); font-weight:600; }
+  .set-fields input:disabled, .timer-opts button:disabled {
+    opacity:0.35; cursor:not-allowed;
+  }
+  .ex-card.locked-card { opacity:0.75; }
+
   /* --- LEGEND --- */
   .legend {
     margin-top:20px; padding:10px 14px;
@@ -960,14 +973,18 @@ function curMaxIsSet(data, exId) {
 
 /* Vorschlag übernehmen: alle leeren Sätze mit dem Ziel-Gewicht füllen */
 function fillSuggestion(exId, kg) {
-  const panel = document.getElementById('panel-' + (function() {
+  const data = loadData();
+  const dayKey = (function() {
     const dayKeys = Object.keys(DAYS);
     for (let i = 0; i < dayKeys.length; i++) {
       const d = DAYS[dayKeys[i]];
       if (d.exercises && d.exercises.some(e => e.id === exId)) return dayKeys[i];
     }
     return '';
-  })());
+  })();
+  // 🔒 Gesperrte Tage nicht befüllen
+  if (dayKey !== currentRotationDay(data)) return;
+  const panel = document.getElementById('panel-' + dayKey);
   if (!panel) return;
   const val = String(kg).replace('.', ',');
   panel.querySelectorAll('.weight-input[data-ex="' + exId + '"]').forEach(inp => {
@@ -1142,8 +1159,17 @@ function renderDay(dayKey) {
   const dateInfo = lastDates.length ? lastDates.join(' · ') : (lastDate ? formatDate(lastDate) : 'noch nie');
   const done = data.__done__ || {};
 
+  // 🔒 Sperre: Nur der aktuelle Rotationstag ist bearbeitbar
+  const isActive = dayKey === currentRotationDay(data);
+  const activeLabel = DAY_LABEL[currentRotationDay(data)];
+  const locked = !isActive;
+
   let html = '<div class="day-panel active" id="panel-' + dayKey + '">';
   html += '<div class="date-row"><span>Letzte Trainings:</span> <strong>' + dateInfo + '</strong></div>';
+
+  if (locked) {
+    html += '<div class="lock-banner">🔒 <strong>' + DAY_LABEL[dayKey] + '</strong> ist heute nicht dran — Heute: <strong>' + activeLabel + '</strong>. Plan nur ansehen, Eingaben gesperrt.</div>';
+  }
 
   let prevSsGroup = 0;
   day.exercises.forEach(ex => {
@@ -1193,16 +1219,18 @@ function renderDay(dayKey) {
     html += '<div class="ex-header">';
     html += '<div class="ex-name">' + ex.name + '</div>';
     html += '<div class="ex-actions">';
-    html += '<button class="timer-btn" data-ex="' + ex.id + '" onclick="toggleTimer(\'' + ex.id + '\')" title="Pausentimer">⏱</button>';
-    html += '<button class="check-btn" onclick="toggleDone(\'' + ex.id + '\')" title="Übung abhaken">✓</button>';
+    if (!locked) {
+      html += '<button class="timer-btn" data-ex="' + ex.id + '" onclick="toggleTimer(\'' + ex.id + '\')" title="Pausentimer">⏱</button>';
+      html += '<button class="check-btn" onclick="toggleDone(\'' + ex.id + '\')" title="Übung abhaken">✓</button>';
+    }
     html += '</div>';
     html += '<div class="ex-meta">' + ex.sets + ' × ' + ex.reps + '<br><span class="rir">RIR ' + ex.rir + '</span></div>';
     html += '</div>';
     if (ex.note) html += '<div class="ex-note">' + ex.note + '</div>';
     if (lastLine) html += lastLine;
 
-    // Gewichts-Vorschlag: letztes Max +2,5 kg als Ein-Klick-Füllung
-    if (lastE) {
+    // Gewichts-Vorschlag: nur wenn Tag aktiv
+    if (lastE && !locked) {
       const baseMax = maxWeight(lastE.weights);
       if (baseMax !== null && !curMaxIsSet(data, ex.id)) {
         const sug = Math.round((baseMax + 2.5) * 10) / 10;
@@ -1219,8 +1247,8 @@ function renderDay(dayKey) {
       html += '<div class="set-input">';
       html += '<label>' + s + '. Satz</label>';
       html += '<div class="set-fields">';
-      html += '<input type="text" inputmode="decimal" class="weight-input' + wFilled + '" data-ex="' + ex.id + '" data-set="' + s + '" placeholder="kg" value="' + val.w + '">';
-      html += '<input type="text" inputmode="numeric" class="reps-input' + rFilled + '" data-ex="' + ex.id + '" data-set="' + s + '" placeholder="Wdh" value="' + val.r + '">';
+      html += '<input type="text" inputmode="decimal" class="weight-input' + wFilled + '" data-ex="' + ex.id + '" data-set="' + s + '" placeholder="kg" value="' + val.w + '"' + (locked ? ' disabled' : '') + '>';
+      html += '<input type="text" inputmode="numeric" class="reps-input' + rFilled + '" data-ex="' + ex.id + '" data-set="' + s + '" placeholder="Wdh" value="' + val.r + '"' + (locked ? ' disabled' : '') + '>';
       html += '</div>';
       html += '</div>';
     }
@@ -1229,7 +1257,7 @@ function renderDay(dayKey) {
     html += '<div class="timer-widget">';
     html += '<div class="timer-opts">';
     [60, 90, 120, 180].forEach(secs => {
-      html += '<button onclick="setTimerOpt(\'' + ex.id + '\', ' + secs + ', this)">' + secs + 's</button>';
+      html += '<button' + (locked ? ' disabled' : '') + ' onclick="setTimerOpt(\'' + ex.id + '\', ' + secs + ', this)">' + secs + 's</button>';
     });
     html += '</div>';
     html += '<div class="timer-run" id="timer-run-' + ex.id + '"></div>';
@@ -1240,12 +1268,16 @@ function renderDay(dayKey) {
   });
 
   html += '<div class="btn-row">';
-  if (ROTATION.includes(dayKey) || dayKey === 'schwach') {
+  if (locked) {
+    html += '<button class="btn" disabled style="opacity:0.45">🔒 Gesperrt — ' + activeLabel + ' ist heute dran</button>';
+  } else if (ROTATION.includes(dayKey) || dayKey === 'schwach') {
     html += '<button class="btn primary" onclick="finishTraining(\'' + dayKey + '\')">Training fertig — weiter zu ' + DAY_LABEL[nextRotationAfter(dayKey)] + '</button>';
   } else {
     html += '<button class="btn primary" onclick="saveCurrentDay(\'' + dayKey + '\')">Training speichern</button>';
   }
-  html += '<button class="btn" onclick="clearCurrentDay(\'' + dayKey + '\')">Leeren</button>';
+  if (!locked) {
+    html += '<button class="btn" onclick="clearCurrentDay(\'' + dayKey + '\')">Leeren</button>';
+  }
   html += '<button class="btn danger" onclick="resetAll()">Alles löschen</button>';
   html += '</div>';
   html += '<p style="font-size:0.62rem;color:var(--text-dim);margin-top:8px;text-align:center;">Eingaben werden automatisch gespeichert · „Training fertig" legt den Verlaufs-Eintrag an und schaltet zur nächsten Einheit</p>';
