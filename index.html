@@ -503,11 +503,11 @@ const DAYS = {
     exercises: [
       { id:'ua-machine-chest', name:'Maschinen-Brustpresse', sets:3, reps:'6-8', rir:'1-2', muscle:'chest', note:'Maschine gleicht langen Hebelarm aus' },
       { id:'ua-incline-smith', name:'Schrägbank-Brustpresse (Scheiben)', sets:3, reps:'8-10', rir:'1-2', muscle:'chest', note:'Maschine gleicht langen Hebelarm aus. Brust isoliert.' },
+      { id:'ua-db-shoulder', name:'Schulterdrücken sitzend (KH)', sets:3, reps:'8-10', rir:'1-2', muscle:'shoulders', note:'Kurzhanteln = natuerlichere Schulterbahn. Compound vor Isolation.' },
       { id:'ua-cable-flys', name:'Kabel-Flys (hoch)', sets:3, reps:'12-15', rir:'0', muscle:'chest', ssGroup:1, note:'Reine Isolation, null Hebelarm-Nachteil' },
-      { id:'ua-db-shoulder', name:'Schulterdrücken sitzend (KH)', sets:3, reps:'8-10', rir:'1-2', muscle:'shoulders', note:'Kurzhanteln = natuerlichere Schulterbahn' },
+      { id:'ua-face-pulls', name:'Gesichtszug (Face Pulls)', sets:3, reps:'15-20', rir:'0', muscle:'shoulders', ssGroup:1, note:'Brust (Flys) + hintere Schulter im Wechsel — kein Kraftverlust' },
       { id:'ua-lateral', name:'Seitheben (KH)', sets:4, reps:'12-15', rir:'0', muscle:'shoulders', note:'NICHT VERHANDELBAR. 4 Saetze, kurze Pause.' },
-      { id:'ua-triceps-rope', name:'Trizeps-Drücken (Seil)', sets:3, reps:'10-12', rir:'1', muscle:'arms' },
-      { id:'ua-face-pulls', name:'Gesichtszug (Face Pulls)', sets:3, reps:'15-20', rir:'0', muscle:'shoulders', ssGroup:1, note:'Brust (Flys) + hintere Schulter im Wechsel — kein Kraftverlust' }
+      { id:'ua-triceps-rope', name:'Trizeps-Drücken (Seil)', sets:3, reps:'10-12', rir:'1', muscle:'arms' }
     ]
   },
   'lower-a': {
@@ -517,7 +517,7 @@ const DAYS = {
       { id:'la-legpress', name:'Beinpresse (einseitig)', sets:3, reps:'10-12', rir:'1', muscle:'legs', note:'Jedes Bein einzeln. Defizit-Seite gibt Load vor.' },
       { id:'la-lunges', name:'Ausfallschritte gehen (KH)', sets:3, reps:'12 Schritte', rir:'1', muscle:'legs' },
       { id:'la-extensions', name:'Beinstrecker (Maschine)', sets:3, reps:'12-15', rir:'0-1', muscle:'legs' },
-      { id:'la-slrdl', name:'Einbeiniges Kreuzheben (KH)', sets:3, reps:'10/Seite', rir:'2', muscle:'legs', ssGroup:1, note:'Hamstrings + Sprunggelenk-Stabilitaet' },
+      { id:'la-slrdl', name:'Einbeiniges Kreuzheben (KH)', sets:3, reps:'10/Seite', rir:'2', muscle:'legs', note:'Hamstrings + Sprunggelenk-Stabilitaet. Solo — kein Supersatz.' },
       { id:'la-back-ext', name:'Rückenstrecker (45°)', sets:3, reps:'12-15', rir:'0', muscle:'back' }
     ]
   },
@@ -526,9 +526,9 @@ const DAYS = {
     exercises: [
       { id:'ub-lat-pulldown', name:'Latzug (enger Griff)', sets:4, reps:'6-10', rir:'1-2', muscle:'back', note:'Breite. Klimmzuege erst wenn +15kg sauber.' },
       { id:'ub-tbar', name:'Schrägbank-KH-Rudern (Incline DB Row)', sets:3, reps:'8-10', rir:'1', muscle:'back' },
-      { id:'ub-cable-flys-flach', name:'Kabel-Flys (flach)', sets:3, reps:'12-15', rir:'1', muscle:'chest', note:'Brust-Isolation — 2. Brust-Reiz der Woche (Upper A = schwer, hier Volumen)' },
-      { id:'ub-cable-row', name:'Kabelrudern sitzend (V-Griff)', sets:3, reps:'10-12', rir:'1', muscle:'back', ssGroup:1 },
-      { id:'ub-ez-curl', name:'Curls mit EZ-Stange', sets:3, reps:'8-10', rir:'1', muscle:'arms', ssGroup:1, note:'Bizeps schwer' },
+      { id:'ub-cable-row', name:'Kabelrudern sitzend (V-Griff)', sets:3, reps:'10-12', rir:'1', muscle:'back', note:'Ruecken-Block abschliessen — solo' },
+      { id:'ub-cable-flys-flach', name:'Kabel-Flys (flach)', sets:3, reps:'12-15', rir:'1', muscle:'chest', ssGroup:1, note:'Brust-Isolation — 2. Brust-Reiz der Woche (Upper A = schwer, hier Volumen)' },
+      { id:'ub-ez-curl', name:'Curls mit EZ-Stange', sets:3, reps:'8-10', rir:'1', muscle:'arms', ssGroup:1, note:'Bizeps schwer. Push/Pull-Antagonist zu Flys.' },
       { id:'ub-incline-curl', name:'Schrägbank-Curls (KH)', sets:3, reps:'10-12', rir:'0', muscle:'arms', ssGroup:2, note:'Bizeps in Dehnung = mehr Hypertrophie-Reiz' },
       { id:'ub-overhead-tri', name:'Trizepsstrecken über Kopf (Kabel)', sets:3, reps:'10-12', rir:'0', muscle:'arms', ssGroup:2, note:'Langer Trizeps-Kopf' },
       { id:'ub-preacher', name:'Priestercurls', sets:2, reps:'12-15', rir:'0', muscle:'arms', note:'Finisher, konstante Spannung' }
@@ -555,7 +555,7 @@ const DAYS = {
       { id:'sw-face-pulls', name:'Gesichtszug (Face Pulls)', sets:4, reps:'15-20', rir:'-', muscle:'shoulders', ssGroup:3, note:'Supersatz C · Tempo 2-1-1-0' },
       { id:'sw-knee-raises', name:'Hängende Knieheben', sets:3, reps:'12-15', rir:'-', muscle:'core', ssGroup:4, note:'Supersatz D · Langsam ausfuehren' },
       { id:'sw-cable-crunch', name:'Kabel-Crunches (kniend, Seil)', sets:3, reps:'15-20', rir:'-', muscle:'core', ssGroup:4, note:'Supersatz D · Tempo 2-0-1-0' },
-      { id:'sw-calf', name:'Wadenheben (einseitig)', sets:3, reps:'15-20', rir:'-', muscle:'calves', ssGroup:5, note:'Supersatz E · Tempo 2-2-1-0' }
+      { id:'sw-calf', name:'Wadenheben (einseitig)', sets:3, reps:'15-20', rir:'-', muscle:'calves', note:'Finisher — Tempo 2-2-1-0, volle Dehnung' }
     ]
   },
   'info': { title: 'Uebersicht', content: true },
