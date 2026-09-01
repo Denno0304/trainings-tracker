@@ -117,6 +117,16 @@
 
   /* --- MAIN --- */
   main { padding: 14px 12px 110px; }
+  /* --- ROTATION --- */
+  .rot-now { border:1px solid var(--accent); box-shadow:0 0 12px rgba(212,169,92,0.25); border-radius:10px; }
+  .rot-now small { color: var(--accent); }
+  .rot-hint { font-size:0.7rem; color:var(--text-dim); margin-top:8px; line-height:1.5; }
+  .finish-toast {
+    background: rgba(90,154,90,0.15); border:1px solid rgba(127,201,127,0.4);
+    color: var(--green); padding:10px 12px; border-radius:12px;
+    font-size:0.8rem; margin-bottom:12px;
+  }
+
   .day-panel { display:none; }
   .day-panel.active { display:block; animation: fadeSlide 0.25s ease; }
   @keyframes fadeSlide {
@@ -372,7 +382,7 @@
   <div class="header-top">
     <div>
       <h1>Trainings-Tracker</h1>
-      <div class="sub">4+1 Upper/Lower · Offline-App</div>
+      <div class="sub">Upper/Lower-Rotation · Offline-App</div>
     </div>
     <div class="ring-wrap">
       <svg width="44" height="44" viewBox="0 0 36 36">
@@ -494,7 +504,7 @@ function loadData() {
   // Migration: alte String-Werte → {w,r}
   let changed = false;
   Object.keys(data).forEach(k => {
-    if (k === '__dates__' || k === '__history__' || k === '__done__') return;
+    if (k === '__dates__' || k === '__history__' || k === '__done__' || k === '__rotation__') return;
     if (data[k] && typeof data[k] === 'object') {
       Object.keys(data[k]).forEach(s => {
         const n = normalizeEntry(data[k][s]);
@@ -689,7 +699,7 @@ function migrateData(data) {
   const entries = {};
   let hasAny = false;
   Object.keys(data).forEach(k => {
-    if (k === '__dates__' || k === '__history__' || k === '__done__') return;
+    if (k === '__dates__' || k === '__history__' || k === '__done__' || k === '__rotation__') return;
     if (data[k] && typeof data[k] === 'object' && Object.keys(data[k]).length) {
       entries[k] = data[k];
       hasAny = true;
@@ -698,6 +708,32 @@ function migrateData(data) {
   if (hasAny) {
     hist.push({ date: new Date().toISOString().slice(0, 10), day: 'migration', entries });
   }
+}
+
+/* ---------- Rotation (flexible Einheiten, keine festen Tage) ---------- */
+
+const ROTATION = ['upper-a', 'lower-a', 'upper-b', 'lower-b'];
+
+function rotationIndex(data) {
+  const r = data.__rotation__;
+  const i = r && typeof r.index === 'number' ? r.index : 0;
+  return ((i % ROTATION.length) + ROTATION.length) % ROTATION.length;
+}
+
+function currentRotationDay(data) {
+  return ROTATION[rotationIndex(data)];
+}
+
+function nextRotationAfter(dayKey) {
+  const i = ROTATION.indexOf(dayKey);
+  return ROTATION[(i + 1) % ROTATION.length];
+}
+
+function advanceRotation(data) {
+  const next = (rotationIndex(data) + 1) % ROTATION.length;
+  data.__rotation__ = { index: next, lastFinish: new Date().toISOString().slice(0, 10) };
+  saveData(data);
+  return ROTATION[next];
 }
 
 function getExEntry(data, exId) {
@@ -844,7 +880,8 @@ function updateProgress() {
   if (todayLine) {
     const lastDates = lastDatesForDay(data, activeDay, 1);
     const lastTxt = lastDates.length ? ' · Letztes Mal ' + formatDate(lastDates[0]) : '';
-    todayLine.innerHTML = 'Heute: <strong>' + day.title.split(' — ')[0] + '</strong>' + lastTxt +
+    todayLine.innerHTML = (ROTATION.includes(activeDay) ? 'Nächste Einheit' : (activeDay === 'schwach' ? 'Zusatz-Training' : 'Heute')) +
+      ': <strong>' + day.title.split(' — ')[0] + '</strong>' + lastTxt +
       ' · <span class="done-count">' + doneCount + '/' + total + ' Übungen</span>';
   }
 }
@@ -954,11 +991,15 @@ function renderDay(dayKey) {
   });
 
   html += '<div class="btn-row">';
-  html += '<button class="btn primary" onclick="saveCurrentDay(\'' + dayKey + '\')">Training speichern</button>';
+  if (ROTATION.includes(dayKey)) {
+    html += '<button class="btn primary" onclick="finishTraining(\'' + dayKey + '\')">Training fertig — weiter zu ' + DAY_LABEL[nextRotationAfter(dayKey)] + '</button>';
+  } else {
+    html += '<button class="btn primary" onclick="saveCurrentDay(\'' + dayKey + '\')">Training speichern</button>';
+  }
   html += '<button class="btn" onclick="clearCurrentDay(\'' + dayKey + '\')">Leeren</button>';
   html += '<button class="btn danger" onclick="resetAll()">Alles löschen</button>';
   html += '</div>';
-  html += '<p style="font-size:0.62rem;color:var(--text-dim);margin-top:8px;text-align:center;">Eingaben werden automatisch gespeichert · „Training speichern" legt den Verlaufs-Eintrag an</p>';
+  html += '<p style="font-size:0.62rem;color:var(--text-dim);margin-top:8px;text-align:center;">Eingaben werden automatisch gespeichert · „Training fertig" legt den Verlaufs-Eintrag an und schaltet zur nächsten Einheit</p>';
 
   html += '<div class="legend">';
   html += '<span><span class="dot g"></span> grün = gespeichert / abgehakt</span>';
@@ -989,17 +1030,22 @@ function toggleTimer(exId) {
 
 /* ---------- Info-Tab ---------- */
 
+function renderRotationCard() {
+  const data = loadData();
+  const cur = currentRotationDay(data);
+  let html = '<div class="info-card"><h2>Trainings-Rotation</h2><div class="week-grid">';
+  ROTATION.forEach(function(k, i) {
+    const isCur = k === cur;
+    html += '<div class="' + (isCur ? 'rot-now' : '') + '"><strong>' + (i + 1) + '</strong><br>' + DAY_LABEL[k] + (isCur ? '<br><small>⬅ dran</small>' : '') + '</div>';
+  });
+  html += '<div><strong>+</strong><br>Schwachst.<br><small>optional</small></div>';
+  html += '</div>' +
+    '<p class="rot-hint">Kein fester Wochenplan: Die App zeigt dir beim Öffnen immer die nächste Einheit. „Training fertig" schaltet automatisch weiter — egal, an welchem Wochentag du trainierst.</p></div>';
+  return html;
+}
+
 function renderInfo() {
-  return '<div class="day-panel active" id="panel-info">' +
-    '<div class="info-card"><h2>Wochenplan</h2><div class="week-grid">' +
-    '<div><strong>Mo</strong><br>Upper A</div>' +
-    '<div><strong>Di</strong><br>Lower A</div>' +
-    '<div class="rest"><strong>Mi</strong><br>FREI</div>' +
-    '<div><strong>Do</strong><br>Upper B</div>' +
-    '<div><strong>Fr</strong><br>Lower B</div>' +
-    '<div><strong>Sa</strong><br>Schwachst.</div>' +
-    '<div class="rest"><strong>So</strong><br>FREI</div>' +
-    '</div></div>' +
+  return '<div class="day-panel active" id="panel-info">' + renderRotationCard() +
     '<div class="info-card"><h2>Die 5 nicht verhandelbaren Regeln</h2><ol class="rules-list">' +
     '<li><strong>Kein Defizit</strong> — 200 kcal Ueberschuss</li>' +
     '<li><strong>140g Protein/Tag</strong> — Shake + Quark + Abendessen</li>' +
@@ -1238,6 +1284,27 @@ function saveCurrentDay(dayKey) {
   }
 }
 
+function finishTraining(dayKey) {
+  saveCurrentDay(dayKey);
+  // Nur Rotationseinheiten schalten automatisch weiter (Schwachstellen = optional)
+  if (!ROTATION.includes(dayKey)) return;
+  const data = loadData();
+  const next = advanceRotation(data);
+  document.querySelectorAll('nav button').forEach(function(b) { b.classList.remove('active'); });
+  const btn = document.querySelector('nav button[data-day="' + next + '"]');
+  if (btn) btn.classList.add('active');
+  showDay(next);
+  updateProgress();
+  const panel = document.getElementById('panel-' + next);
+  if (panel && !panel.querySelector('.finish-toast')) {
+    const toast = document.createElement('div');
+    toast.className = 'finish-toast';
+    toast.innerHTML = '✓ <strong>' + DAY_LABEL[dayKey] + '</strong> gespeichert — jetzt dran: <strong>' + DAY_LABEL[next] + '</strong>';
+    panel.insertBefore(toast, panel.firstChild);
+    setTimeout(function() { if (toast.parentNode) toast.parentNode.removeChild(toast); }, 3000);
+  }
+}
+
 function clearCurrentDay(dayKey) {
   if (!confirm('Alle Gewichte fuer diesen Tag loeschen?')) return;
   const data = loadData();
@@ -1353,7 +1420,16 @@ document.querySelectorAll('nav button').forEach(function(btn) {
   });
 });
 
-// Initial render
+// Initial render — zeige die aktuell faellige Einheit (Rotation)
+(function() {
+  const data = loadData();
+  const cur = currentRotationDay(data);
+  const btn = document.querySelector('nav button[data-day="' + cur + '"]');
+  if (btn) {
+    document.querySelectorAll('nav button').forEach(function(b) { b.classList.remove('active'); });
+    btn.classList.add('active');
+  }
+})();
 renderAll();
 
 // PWA: Offline-Cache registrieren
