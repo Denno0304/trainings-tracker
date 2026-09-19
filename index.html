@@ -324,6 +324,14 @@
   .delta.down { background: rgba(224,108,94,0.16); color:var(--red); }
   .delta.same { background: rgba(142,142,152,0.14); color:var(--text-dim); }
 
+  /* --- SERVER-SYNC --- */
+  .sync-status {
+    font-size:0.68rem; padding:8px 10px; border-radius:10px; margin-top:8px;
+    background: var(--surface2); border:1px solid var(--border); color:var(--text-dim); line-height:1.45;
+  }
+  .sync-status.s-ok, .sync-status.s-pulled, .sync-status.s-pushed { border-color: rgba(127,201,127,0.45); color: var(--green); }
+  .sync-status.s-offline, .sync-status.s-error { border-color: rgba(212,169,92,0.5); color: var(--accent); }
+
   /* --- TAGESWAHL --- */
   .pick-wrap {
     margin: 10px 0 12px; padding: 10px 12px;
@@ -708,7 +716,7 @@ function loadData() {
   // Migration: alte String-Werte → {w,r}
   let changed = false;
   Object.keys(data).forEach(k => {
-    if (k === '__dates__' || k === '__history__' || k === '__done__' || k === '__rotation__' || k === '__session__' || k === '__today__') return;
+    if (k === '__dates__' || k === '__history__' || k === '__done__' || k === '__rotation__' || k === '__session__' || k === '__today__' || k === '__sync__') return;
     if (data[k] && typeof data[k] === 'object') {
       Object.keys(data[k]).forEach(s => {
         const n = normalizeEntry(data[k][s]);
@@ -728,12 +736,15 @@ function loadData() {
       });
     });
   });
-  if (changed) saveData(data);
+  if (changed) saveData(data, true);
   return data;
 }
 
-function saveData(data) {
+function saveData(data, silent) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  // Echte Aenderungen gehen (verzoegert) an die Server-Zentrale.
+  // silent = technische Schreibvorgaenge (Migration/Normalisierung), kein Sync-Trigger.
+  if (!silent && window.__syncReady && !window.__applyingRemote && typeof queuePush === 'function') queuePush();
 }
 
 function getHistory(data) {
@@ -903,7 +914,7 @@ function migrateData(data) {
   const entries = {};
   let hasAny = false;
   Object.keys(data).forEach(k => {
-    if (k === '__dates__' || k === '__history__' || k === '__done__' || k === '__rotation__' || k === '__session__' || k === '__today__') return;
+    if (k === '__dates__' || k === '__history__' || k === '__done__' || k === '__rotation__' || k === '__session__' || k === '__today__' || k === '__sync__') return;
     if (data[k] && typeof data[k] === 'object' && Object.keys(data[k]).length) {
       entries[k] = data[k];
       hasAny = true;
@@ -1619,6 +1630,13 @@ function renderInfo() {
     '<div class="info-card"><h2>Tempo-Code</h2>' +
     '<p class="tempo-desc">3-0-1-0 = 3s exzentrisch (runter) | 0s Pause unten | 1s konzentrisch (hoch) | 0s Pause oben</p>' +
     '<p class="tempo-hint">Exzentrisch (runter) immer langsam — da waechst der Muskel.</p></div>' +
+    '<div class="info-card"><h2>Server-Sync — Daten zentral gesichert</h2>' +
+    '<p style="font-size:0.7rem;color:var(--text-dim);">Deine Gewichte liegen zusätzlich auf dem Heim-Server (nur über dein Tailscale-Netz erreichbar). Damit sind sie auf jedem Gerät sichtbar und nicht nur an einem Handy.</p>' +
+    '<div class="sync-status" id="sync-status">' + syncStatusHtml() + '</div>' +
+    '<div class="btn-row" style="margin-top:10px;">' +
+    '<button class="btn primary" onclick="syncPull({force:true})">Vom Server laden</button>' +
+    '<button class="btn" onclick="syncPush()">Zum Server sichern</button>' +
+    '</div></div>' +
     '<div class="info-card"><h2>Backup — Gewichte sichern</h2>' +
     '<p style="font-size:0.7rem;color:var(--text-dim);">Speichert alle Gewichte als Text (z.B. per Telegram an dich selbst schicken). Wichtig bei Gerätewechsel.</p>' +
     '<div class="btn-row" style="margin-top:10px;">' +
@@ -1972,10 +1990,168 @@ function importBackup() {
   try { parsed = JSON.parse(raw); } catch (e) { alert('Ungültiges Backup-Format.'); return; }
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) { alert('Ungültiges Backup-Format.'); return; }
   if (!confirm('Aktuelle Daten werden durch das Backup ERSETZT. Fortfahren?')) return;
+  parsed.__sync__ = { updatedAt: Date.now() };
   localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
   renderAll();
   ta.value = '';
   alert('Backup wiederhergestellt!');
+  if (window.__syncReady) syncPush();   // wiederhergestellte Daten sofort in die Zentrale
+}
+
+/* ---------- Server-Sync (Zentrale im Heim-Server) ---------- */
+
+window.__syncReady = false;
+window.__applyingRemote = false;
+window.__syncStatus = { state: 'init', at: null, msg: '' };
+let __syncEndpoint = null;
+let __pushTimer = null;
+let __syncing = false;
+
+/* Endpunkte in Reihenfolge: gleiche Herkunft (Tailnet-https / -http) zuerst,
+   dann der feste Tailscale-Hostname (funktioniert auch aus der GitHub-Pages-App). */
+const SYNC_STATE_URLS = (function() {
+  const list = [];
+  if (location.protocol === 'http:' || location.protocol === 'https:') list.push(location.origin + '/api/state');
+  list.push('https://hermes-server.tailb9d2d3.ts.net/api/state');
+  return list.filter(function(u, i, a) { return a.indexOf(u) === i; });
+})();
+
+function syncClientName() {
+  const dev = /iPhone/i.test(navigator.userAgent) ? 'iPhone' : (/iPad/i.test(navigator.userAgent) ? 'iPad' : 'Browser');
+  return dev + '@' + location.host;
+}
+
+function syncFetch(url, opts, ms) {
+  const ctl = new AbortController();
+  const t = setTimeout(function() { ctl.abort(); }, ms || 8000);
+  return fetch(url, Object.assign({ cache: 'no-store', signal: ctl.signal }, opts || {}))
+    .finally(function() { clearTimeout(t); });
+}
+
+function syncStatusHtml() {
+  const s = window.__syncStatus || {};
+  const t = s.at ? new Date(s.at).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) : '';
+  if (s.state === 'pulled') return '☁ <strong>Daten vom Server geladen</strong>' + (t ? ' · ' + t : '');
+  if (s.state === 'pushed') return '☁ <strong>Zum Server gesichert</strong>' + (t ? ' · ' + t : '');
+  if (s.state === 'ok') return '☁ Server verbunden · alles aktuell' + (t ? ' · ' + t : '');
+  if (s.state === 'offline') return '⚠ Server nicht erreichbar — deine Eingaben liegen auf diesem Gerät und werden automatisch nachgeholt';
+  if (s.state === 'error') return '⚠ Sync-Fehler: ' + (s.msg || 'unbekannt');
+  return '☁ Sync wird geprüft …';
+}
+
+function setSyncStatus(state, msg) {
+  window.__syncStatus = { state: state, at: Date.now(), msg: msg || '' };
+  const el = document.getElementById('sync-status');
+  if (el) { el.className = 'sync-status s-' + state; el.innerHTML = syncStatusHtml(); }
+}
+
+async function syncDiscover(force) {
+  if (__syncEndpoint && !force) return __syncEndpoint;
+  const local = loadData();
+  if (!force && local.__sync__ && local.__sync__.endpoint) {
+    __syncEndpoint = local.__sync__.endpoint;
+    return __syncEndpoint;
+  }
+  for (let i = 0; i < SYNC_STATE_URLS.length; i++) {
+    const cand = SYNC_STATE_URLS[i];
+    try {
+      const r = await syncFetch(cand.replace(/\/state$/, '/health'), {}, 5000);
+      if (r && r.ok) {
+        const j = await r.json();
+        if (j && j.ok) { __syncEndpoint = cand; return cand; }
+      }
+    } catch (e) { /* naechsten Kandidaten probieren */ }
+  }
+  return null;
+}
+
+/* Hat der Datensatz echte Inhalte (Uebungen oder Verlauf)? */
+function syncHasContent(data) {
+  if (!data || typeof data !== 'object') return false;
+  if (Array.isArray(data.__history__) && data.__history__.length) return true;
+  return Object.keys(data).some(function(k) {
+    return k.indexOf('__') !== 0 && data[k] && typeof data[k] === 'object' && Object.keys(data[k]).length > 0;
+  });
+}
+
+function syncStashLocal(data) {
+  try {
+    const key = STORAGE_KEY + '-backup-' + new Date().toISOString().replace(/[:T]/g, '-').slice(0, 19);
+    localStorage.setItem(key, JSON.stringify(data));
+    const keys = Object.keys(localStorage).filter(function(k) { return k.indexOf(STORAGE_KEY + '-backup-') === 0; }).sort();
+    keys.slice(0, Math.max(0, keys.length - 5)).forEach(function(k) { localStorage.removeItem(k); });
+  } catch (e) { /* Speicher voll o.ae. — Sync darf daran nicht scheitern */ }
+}
+
+async function syncPush() {
+  if (__syncing) return null;
+  const ep = await syncDiscover(false);
+  if (!ep) { setSyncStatus('offline'); return null; }
+  const data = loadData();
+  const at = Date.now();
+  data.__sync__ = Object.assign({}, data.__sync__, { updatedAt: at, endpoint: ep, lastPush: at });
+  __syncing = true;
+  window.__applyingRemote = true; saveData(data); window.__applyingRemote = false;
+  try {
+    const r = await syncFetch(ep, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ data: data, clientUpdatedAt: at, client: syncClientName() })
+    }, 12000);
+    const j = await r.json();
+    __syncing = false;
+    setSyncStatus(j && j.applied ? 'pushed' : 'ok');
+    return j;
+  } catch (e) {
+    __syncing = false;
+    setSyncStatus('error', String((e && e.message) || e));
+    return null;
+  }
+}
+
+async function syncPull(opts) {
+  if (__syncing) return null;
+  const ep = await syncDiscover(!!(opts && opts.force));
+  if (!ep) { setSyncStatus('offline'); return null; }
+  const local = loadData();
+  const localAt = (local.__sync__ && local.__sync__.updatedAt) || 0;
+  try {
+    const r = await syncFetch(ep, {}, 12000);
+    const remote = await r.json();
+    const remoteAt = (remote && remote.updatedAt) || 0;
+    const remoteData = remote && remote.data;
+    const remoteHas = syncHasContent(remoteData);
+    const localHas = syncHasContent(local);
+    if (remoteHas && (!localHas || remoteAt > localAt)) {
+      syncStashLocal(local);
+      const merged = remoteData;
+      merged.__sync__ = { updatedAt: remoteAt, endpoint: ep, lastPull: Date.now() };
+      window.__applyingRemote = true; saveData(merged); window.__applyingRemote = false;
+      renderAll();
+      setSyncStatus('pulled');
+      return 'pulled';
+    }
+    // Geraet mit Inhalt (z.B. Altbestand ohne Sync-Metadaten) darf die Zentrale fuellen,
+    // ein LEERES Geraet niemals einen gefuellten Server ueberschreiben.
+    if (localHas && (!remoteHas || localAt > remoteAt)) { await syncPush(); return 'pushed'; }
+    setSyncStatus('ok');
+    return 'ok';
+  } catch (e) {
+    setSyncStatus('error', String((e && e.message) || e));
+    return null;
+  }
+}
+
+function queuePush() {
+  clearTimeout(__pushTimer);
+  __pushTimer = setTimeout(function() { syncPush(); }, 3000);
+}
+
+async function initSync() {
+  const ep = await syncDiscover(true);
+  window.__syncReady = true;
+  if (!ep) { setSyncStatus('offline'); return; }
+  await syncPull({});
 }
 
 /* ---------- Render-All / Tabs / Events ---------- */
@@ -2086,6 +2262,12 @@ document.querySelectorAll('nav button').forEach(function(btn) {
   }
 })();
 renderAll();
+
+// Server-Sync starten (nur online sinnvoll; offline bleibt alles lokal gespeichert)
+if (location.protocol === 'http:' || location.protocol === 'https:') {
+  setTimeout(function() { initSync(); }, 700);
+  window.addEventListener('online', function() { syncPull({}); });
+}
 
 // PWA: Offline-Cache registrieren
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
