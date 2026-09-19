@@ -324,16 +324,37 @@
   .delta.down { background: rgba(224,108,94,0.16); color:var(--red); }
   .delta.same { background: rgba(142,142,152,0.14); color:var(--text-dim); }
 
+  /* --- TAGESWAHL --- */
+  .pick-wrap {
+    margin: 10px 0 12px; padding: 10px 12px;
+    background: var(--surface); border:1px solid var(--border); border-radius:14px;
+  }
+  .pick-title { font-size:0.68rem; color:var(--text-dim); margin-bottom:8px; line-height:1.4; }
+  .pick-title strong { color:var(--text-bright); }
+  .pick-row { display:flex; gap:6px; flex-wrap:wrap; }
+  .pick-chip {
+    flex:1 1 auto; min-width:70px; padding:10px 8px;
+    background: var(--surface2); border:1px solid var(--border); border-radius:11px;
+    color:var(--text-dim); font-family:inherit; font-size:0.68rem; font-weight:700;
+    cursor:pointer; transition: border 0.15s, color 0.15s, background 0.15s;
+  }
+  .pick-chip.suggested { border-color: rgba(212,169,92,0.5); color: var(--accent); }
+  .pick-chip.picked {
+    background: linear-gradient(135deg, rgba(212,169,92,0.22), rgba(212,169,92,0.08));
+    border-color: var(--accent); color: var(--text-bright);
+  }
+  .pick-chip:active { transform: scale(0.97); }
+
   /* --- SETS ROW --- */
   .sets-row { display:flex; gap:6px; flex-wrap:wrap; }
   .set-input { display:flex; flex-direction:column; gap:2px; }
   .set-input label { font-size:0.58rem; color:var(--text-dim); text-align:center; text-transform:uppercase; letter-spacing:0.05em; }
   .set-fields { display:flex; gap:4px; }
   .set-fields input {
-    width:56px; padding:8px 2px;
+    width:60px; padding:8px 2px;
     background: var(--surface2);
     border:1px solid var(--border); border-radius:10px;
-    color:var(--text-bright); font-size:0.82rem; font-weight:600; text-align:center;
+    color:var(--text-bright); font-size:16px; font-weight:600; text-align:center;
     font-family:inherit; transition: border 0.15s;
   }
   .set-fields input.wide { width:64px; }
@@ -687,7 +708,7 @@ function loadData() {
   // Migration: alte String-Werte → {w,r}
   let changed = false;
   Object.keys(data).forEach(k => {
-    if (k === '__dates__' || k === '__history__' || k === '__done__' || k === '__rotation__' || k === '__session__') return;
+    if (k === '__dates__' || k === '__history__' || k === '__done__' || k === '__rotation__' || k === '__session__' || k === '__today__') return;
     if (data[k] && typeof data[k] === 'object') {
       Object.keys(data[k]).forEach(s => {
         const n = normalizeEntry(data[k][s]);
@@ -882,7 +903,7 @@ function migrateData(data) {
   const entries = {};
   let hasAny = false;
   Object.keys(data).forEach(k => {
-    if (k === '__dates__' || k === '__history__' || k === '__done__' || k === '__rotation__' || k === '__session__') return;
+    if (k === '__dates__' || k === '__history__' || k === '__done__' || k === '__rotation__' || k === '__session__' || k === '__today__') return;
     if (data[k] && typeof data[k] === 'object' && Object.keys(data[k]).length) {
       entries[k] = data[k];
       hasAny = true;
@@ -925,10 +946,42 @@ function rotationIndex(data) {
   return ((i % ROTATION.length) + ROTATION.length) % ROTATION.length;
 }
 
+function todayISO() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+/* Tageswahl: welche Einheit der User heute SELBST gewaehlt hat (gilt nur am selben Tag) */
+function pickedDay(data) {
+  const p = data.__today__;
+  if (p && p.date === todayISO() && (ROTATION.includes(p.day) || p.day === 'schwach')) return p.day;
+  return null;
+}
+
+/* Heute relevant: eigene Wahl schlaegt Vorschlag */
 function currentRotationDay(data) {
-  // Schwachstellen-Tag automatisch dran, wenn alle 4 Einheiten diese Woche fertig sind
+  const picked = pickedDay(data);
+  if (picked) return picked;
+  // Schwachstellen-Tag automatisch vorschlagen, wenn alle 4 Einheiten diese Woche fertig sind
   if (weekDone(data) && !schwachDone(data)) return 'schwach';
   return ROTATION[rotationIndex(data)];
+}
+
+/* Einheit selbst waehlen (statt von Plan zu Plan) */
+function pickDay(dayKey) {
+  if (!ROTATION.includes(dayKey) && dayKey !== 'schwach') return;
+  const data = loadData();
+  data.__today__ = { date: todayISO(), day: dayKey };
+  // Laufende Session mit umziehen, Startzeit bleibt erhalten
+  if (data.__session__ && data.__session__.date === todayISO() && data.__session__.day !== dayKey) {
+    data.__session__.day = dayKey;
+  }
+  saveData(data);
+  document.querySelectorAll('nav button').forEach(function(b) { b.classList.remove('active'); });
+  const navBtn = document.querySelector('nav button[data-day="' + dayKey + '"]');
+  if (navBtn) navBtn.classList.add('active');
+  renderAll();
+  const panel = document.getElementById('panel-' + dayKey);
+  if (panel && panel.scrollIntoView) { try { panel.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) {} }
 }
 
 function nextRotationAfter(dayKey) {
@@ -958,6 +1011,25 @@ function trainingCount(data) {
   return getHistory(data).filter(h => h.day !== 'migration').length;
 }
 
+/* Tageswahl: Chips zum Aussuchen der Einheit */
+function dayPickerHtml(data, picked) {
+  const cur = currentRotationDay(data);
+  const keys = ROTATION.concat(['schwach']);
+  let chips = '';
+  keys.forEach(function(k) {
+    let cls = 'pick-chip';
+    if (k === picked) cls += ' picked';
+    else if (!picked && k === cur) cls += ' suggested';
+    chips += '<button class="' + cls + '" onclick="pickDay(\'' + k + '\')">' + (k === 'schwach' ? '+ Schwachst.' : DAY_LABEL[k]) + '</button>';
+  });
+  return '<div class="pick-wrap">' +
+    '<div class="pick-title">' + (picked
+      ? 'Heute gewaehlt: <strong>' + DAY_LABEL[picked] + '</strong> — tippe eine andere Einheit zum Wechseln'
+      : 'Was trainierst du heute? Vorschlag: <strong>' + DAY_LABEL[cur] + '</strong>') + '</div>' +
+    '<div class="pick-row">' + chips + '</div>' +
+    '</div>';
+}
+
 function weekPreviewHtml(data) {
   const cur = currentRotationDay(data);
   const hist = getHistory(data);
@@ -968,12 +1040,12 @@ function weekPreviewHtml(data) {
   ROTATION.forEach(function(k) {
     const isNow = k === cur;
     const doneCls = doneToday && isNow ? ' wp-done' : '';
-    html += '<div class="wp-cell' + (isNow ? ' wp-now' : '') + doneCls + '" onclick="jumpToDay(\'' + k + '\')">' +
+    html += '<div class="wp-cell' + (isNow ? ' wp-now' : '') + doneCls + '" onclick="pickDay(\'' + k + '\')">' +
       '<div class="wp-day">' + shortLabel(k) + '</div>' +
       '<div class="wp-name">' + DAY_LABEL[k] + '</div></div>';
   });
   // Schwachstellen als 5. Einheit, wenn Woche komplett
-  html += '<div class="wp-cell' + (cur === 'schwach' ? ' wp-now' : '') + (doneToday && cur === 'schwach' ? ' wp-done' : '') + '" onclick="jumpToDay(\'schwach\')">' +
+  html += '<div class="wp-cell' + (cur === 'schwach' ? ' wp-now' : '') + (doneToday && cur === 'schwach' ? ' wp-done' : '') + '" onclick="pickDay(\'schwach\')">' +
     '<div class="wp-day">+</div>' +
     '<div class="wp-name">Schwachst.</div></div>';
   html += '</div>';
@@ -1017,18 +1089,21 @@ function renderTodayHero() {
   const label = DAY_LABEL[cur];
   const today = new Date().toISOString().slice(0, 10);
   const hist = getHistory(data);
-  const doneToday = hist.some(h => h.date === today && (ROTATION.includes(h.day) || h.day === 'schwach'));
+  // "erledigt" gilt pro Einheit: an einem Tag sind auch zwei Einheiten moeglich
+  const doneToday = hist.some(h => h.date === today && h.day === cur);
   const lastDate = hist.length ? hist[hist.length - 1].date : null;
 
   let html = '<div class="today-hero' + (doneToday ? ' th-done' : '') + '">';
   html += '<div class="th-left">';
-  html += '<div class="th-label">' + (doneToday ? '✓ Heute erledigt' : 'Heute trainieren') + '</div>';
+  const picked = pickedDay(data);
+  html += '<div class="th-label">' + (doneToday ? '✓ Heute erledigt' : (picked ? 'Deine Wahl heute' : 'Vorschlag — du entscheidest')) + '</div>';
   html += '<div class="th-title">' + (doneToday ? label + ' — geschafft! 🎉' : label) + '</div>';
   html += '<div class="th-sub">' + fmtDateDE(new Date()) + (lastDate ? ' · Letztes Training: ' + formatDate(lastDate) : '') + '</div>';
   html += '</div>';
   html += '<div class="th-badge">' + shortLabel(cur) + '</div>';
   html += '</div>';
   html += renderDurationChip();
+  html += dayPickerHtml(data, picked);
   html += weekPreviewHtml(data);
   html += weekProgress(data);
   html += '<div class="stat-row">' +
@@ -1108,8 +1183,6 @@ function fillSuggestion(exId, kg) {
     }
     return '';
   })();
-  // 🔒 Gesperrte Tage nicht befüllen
-  if (dayKey !== currentRotationDay(data)) return;
   const panel = document.getElementById('panel-' + dayKey);
   if (!panel) return;
   const val = String(kg).replace('.', ',');
@@ -1215,8 +1288,8 @@ function startSessionIfNeeded() {
   const today = new Date().toISOString().slice(0, 10);
   const cur = currentRotationDay(data);
   const hist = getHistory(data);
-  // Schon heute abgeschlossen? Dann keine neue Session
-  if (hist.some(h => h.date === today && (ROTATION.includes(h.day) || h.day === 'schwach'))) return;
+  // Diese Einheit heute schon abgeschlossen? Dann keine neue Session
+  if (hist.some(h => h.date === today && h.day === cur)) return;
   if (!data.__session__ || data.__session__.day !== cur || data.__session__.date !== today) {
     data.__session__ = { day: cur, date: today, startedAt: Date.now() };
     saveData(data);
@@ -1295,7 +1368,9 @@ function toggleDone(exId) {
 
 function updateProgress() {
   const data = loadData();
-  const activeDay = document.querySelector('nav button.active').dataset.day;
+  const navActive = document.querySelector('nav button.active');
+  if (!navActive) return;
+  const activeDay = navActive.dataset.day;
   const day = DAYS[activeDay];
   const todayLine = document.getElementById('today-line');
   const ringFg = document.getElementById('ring-fg');
@@ -1338,17 +1413,8 @@ function renderDay(dayKey) {
   const dateInfo = lastDates.length ? lastDates.join(' · ') : (lastDate ? formatDate(lastDate) : 'noch nie');
   const done = data.__done__ || {};
 
-  // 🔒 Sperre: Nur der aktuelle Rotationstag ist bearbeitbar
-  const isActive = dayKey === currentRotationDay(data);
-  const activeLabel = DAY_LABEL[currentRotationDay(data)];
-  const locked = !isActive;
-
   let html = '<div class="day-panel active" id="panel-' + dayKey + '">';
   html += '<div class="date-row"><span>Letzte Trainings:</span> <strong>' + dateInfo + '</strong></div>';
-
-  if (locked) {
-    html += '<div class="lock-banner">🔒 <strong>' + DAY_LABEL[dayKey] + '</strong> ist heute nicht dran — Heute: <strong>' + activeLabel + '</strong>. Plan nur ansehen, Eingaben gesperrt.</div>';
-  }
 
   let prevSsGroup = 0;
   day.exercises.forEach(ex => {
@@ -1403,18 +1469,16 @@ function renderDay(dayKey) {
     html += '<div class="ex-name">' + ex.name + '</div>';
     html += '</div>';
     html += '<div class="ex-actions">';
-    if (!locked) {
-      html += '<button class="timer-btn" data-ex="' + ex.id + '" onclick="toggleTimer(\'' + ex.id + '\')" title="Pausentimer">⏱</button>';
-      html += '<button class="check-btn" onclick="toggleDone(\'' + ex.id + '\')" title="Übung abhaken">✓</button>';
-    }
+    html += '<button class="timer-btn" data-ex="' + ex.id + '" onclick="toggleTimer(\'' + ex.id + '\')" title="Pausentimer">⏱</button>';
+    html += '<button class="check-btn" onclick="toggleDone(\'' + ex.id + '\')" title="Übung abhaken">✓</button>';
     html += '</div>';
     html += '<div class="ex-meta">' + ex.sets + ' × ' + ex.reps + '<br><span class="rir">RIR ' + ex.rir + '</span></div>';
     html += '</div>';
     if (ex.note) html += '<div class="ex-note">' + ex.note + '</div>';
     if (lastLine) html += lastLine;
 
-    // Gewichts-Vorschlag: nur wenn Tag aktiv
-    if (lastE && !locked) {
+    // Gewichts-Vorschlag: immer (jede Einheit ist trainierbar)
+    if (lastE) {
       const baseMax = maxWeight(lastE.weights);
       if (baseMax !== null && !curMaxIsSet(data, ex.id)) {
         const sug = Math.round((baseMax + 2.5) * 10) / 10;
@@ -1450,8 +1514,8 @@ function renderDay(dayKey) {
       html += '<div class="set-input">';
       html += '<label>' + s + '. Satz</label>';
       html += '<div class="set-fields">';
-      html += '<input type="text" inputmode="decimal" class="weight-input' + wFilled + '" data-ex="' + ex.id + '" data-set="' + s + '" placeholder="kg" value="' + val.w + '"' + (locked ? ' disabled' : '') + '>';
-      html += '<input type="text" inputmode="numeric" class="reps-input' + rFilled + '" data-ex="' + ex.id + '" data-set="' + s + '" placeholder="Wdh" value="' + val.r + '"' + (locked ? ' disabled' : '') + '>';
+      html += '<input type="text" inputmode="decimal" class="weight-input' + wFilled + '" data-ex="' + ex.id + '" data-set="' + s + '" placeholder="kg" value="' + val.w + '" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">';
+      html += '<input type="text" inputmode="numeric" class="reps-input' + rFilled + '" data-ex="' + ex.id + '" data-set="' + s + '" placeholder="Wdh" value="' + val.r + '" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">';
       html += '</div>';
       html += lastTxt;
       html += '</div>';
@@ -1461,7 +1525,7 @@ function renderDay(dayKey) {
     html += '<div class="timer-widget">';
     html += '<div class="timer-opts">';
     [60, 90, 120, 180].forEach(secs => {
-      html += '<button' + (locked ? ' disabled' : '') + ' onclick="setTimerOpt(\'' + ex.id + '\', ' + secs + ', this)">' + secs + 's</button>';
+      html += '<button onclick="setTimerOpt(\'' + ex.id + '\', ' + secs + ', this)">' + secs + 's</button>';
     });
     html += '</div>';
     html += '<div class="timer-run" id="timer-run-' + ex.id + '"></div>';
@@ -1472,19 +1536,15 @@ function renderDay(dayKey) {
   });
 
   html += '<div class="btn-row">';
-  if (locked) {
-    html += '<button class="btn" disabled style="opacity:0.45">🔒 Gesperrt — ' + activeLabel + ' ist heute dran</button>';
-  } else if (ROTATION.includes(dayKey) || dayKey === 'schwach') {
-    html += '<button class="btn primary" onclick="finishTraining(\'' + dayKey + '\')">Training fertig — weiter zu ' + DAY_LABEL[nextRotationAfter(dayKey)] + '</button>';
+  if (ROTATION.includes(dayKey) || dayKey === 'schwach') {
+    html += '<button class="btn primary" onclick="finishTraining(\'' + dayKey + '\')">Training fertig</button>';
   } else {
     html += '<button class="btn primary" onclick="saveCurrentDay(\'' + dayKey + '\')">Training speichern</button>';
   }
-  if (!locked) {
-    html += '<button class="btn" onclick="clearCurrentDay(\'' + dayKey + '\')">Leeren</button>';
-  }
+  html += '<button class="btn" onclick="clearCurrentDay(\'' + dayKey + '\')">Leeren</button>';
   html += '<button class="btn danger" onclick="resetAll()">Alles löschen</button>';
   html += '</div>';
-  html += '<p style="font-size:0.62rem;color:var(--text-dim);margin-top:8px;text-align:center;">Eingaben werden automatisch gespeichert · „Training fertig" legt den Verlaufs-Eintrag an und schaltet zur nächsten Einheit</p>';
+  html += '<p style="font-size:0.62rem;color:var(--text-dim);margin-top:8px;text-align:center;">Eingaben werden automatisch gespeichert · „Training fertig" legt den Verlaufs-Eintrag an und merkt sich ' + DAY_LABEL[dayKey] + ' für heute</p>';
 
   html += '<div class="legend">';
   html += '<span><span class="dot g"></span> grün = gespeichert / abgehakt</span>';
@@ -1525,7 +1585,7 @@ function renderRotationCard() {
   });
   html += '<div><strong>+</strong><br>Schwachst.<br><small>optional</small></div>';
   html += '</div>' +
-    '<p class="rot-hint">Kein fester Wochenplan: Die App zeigt dir beim Öffnen immer die nächste Einheit. „Training fertig" schaltet automatisch weiter — egal, an welchem Wochentag du trainierst.</p></div>';
+    '<p class="rot-hint"><strong>Du suchst aus:</strong> In der Heute-Karte tippst du an, welche Einheit du heute trainierst (A / LA / UB / LB oder + Schwachstellen) — auch aus der Wochen-Vorschau heraus. Die goldene Markierung ist nur ein Vorschlag. „Training fertig" merkt sich die Einheit für heute und schlägt danach die nächste vor, springt aber nicht mehr automatisch um. Nichts ist gesperrt: jede Einheit ist jederzeit eintragbar.</p></div>';
   return html;
 }
 
@@ -1832,25 +1892,23 @@ function finishTraining(dayKey) {
   if (!ROTATION.includes(dayKey) && dayKey !== 'schwach') return;
   const data = loadData();
   const next = nextRotationAfter(dayKey);
+  // Vorschlag fortschreiben — der User bleibt aber auf SEINER Einheit
   if (dayKey === 'schwach') {
-    // Nach Schwachstellen: neue Runde starten (zurück zu Upper A)
-    data.__rotation__ = { index: 0, lastFinish: new Date().toISOString().slice(0, 10) };
-    saveData(data);
+    data.__rotation__ = { index: 0, lastFinish: todayISO() };
   } else {
-    advanceRotation(data);
+    data.__rotation__ = { index: (ROTATION.indexOf(dayKey) + 1) % ROTATION.length, lastFinish: todayISO() };
   }
-  document.querySelectorAll('nav button').forEach(function(b) { b.classList.remove('active'); });
-  const btn = document.querySelector('nav button[data-day="' + next + '"]');
-  if (btn) btn.classList.add('active');
-  showDay(next);
-  updateProgress();
-  const panel = document.getElementById('panel-' + next);
+  delete data.__today__;   // Tageswahl zuruecksetzen -> morgen wieder Vorschlag
+  saveData(data);
+  renderAll();
+  jumpToDay(dayKey);
+  const panel = document.getElementById('panel-' + dayKey);
   if (panel && !panel.querySelector('.finish-toast')) {
     const toast = document.createElement('div');
     toast.className = 'finish-toast';
-    toast.innerHTML = '✓ <strong>' + DAY_LABEL[dayKey] + '</strong> gespeichert — jetzt dran: <strong>' + DAY_LABEL[next] + '</strong>';
+    toast.innerHTML = '✓ <strong>' + DAY_LABEL[dayKey] + '</strong> gespeichert — nächster Vorschlag: <strong>' + DAY_LABEL[next] + '</strong>';
     panel.insertBefore(toast, panel.firstChild);
-    setTimeout(function() { if (toast.parentNode) toast.parentNode.removeChild(toast); }, 3000);
+    setTimeout(function() { if (toast.parentNode) toast.parentNode.removeChild(toast); }, 3500);
   }
 }
 
@@ -1931,7 +1989,8 @@ function renderAll() {
   Object.keys(DAYS).forEach(function(key) {
     main.innerHTML += renderDay(key);
   });
-  const activeDay = document.querySelector('nav button.active').dataset.day;
+  const navActive = document.querySelector('nav button.active');
+  const activeDay = navActive ? navActive.dataset.day : 'upper-a';
   showDay(activeDay);
   attachInputListeners();
   updateProgress();
@@ -1962,15 +2021,24 @@ function attachInputListeners() {
     input.addEventListener('input', function() {
       if (this.value) this.classList.add('filled');
       else this.classList.remove('filled');
+      this.__typedSinceFocus = true;
       updateDelta(this.dataset.ex);
       autoSave();
-      // Feature 6: Auto-Fokus — wenn Gewicht + Wdh. gefüllt, springe zum nächsten leeren Satz
+      // Feature 6: Auto-Fokus — springt nur, wenn der Satz GERADE neu gefüllt wurde
       focusNextSet(this);
     });
+    input.addEventListener('keydown', function() { this.__typedSinceFocus = true; });
     input.addEventListener('focus', function() {
-      // Bei Fokus den Inhalt markieren (schnelles Überschreiben)
       var self = this;
-      setTimeout(function() { self.select(); }, 10);
+      self.__typedSinceFocus = false;
+      self.dataset.wasEmpty = self.value.trim() ? '0' : '1';
+      // Inhalt markieren (schnelles Überschreiben) — aber NICHT, wenn schon getippt wird,
+      // sonst wird die erste Ziffer wieder ueberschrieben ("nur eine Zahl tippbar")
+      setTimeout(function() {
+        if (self.__typedSinceFocus) return;
+        if (document.activeElement !== self) return;
+        try { self.select(); } catch (e) {}
+      }, 40);
     });
   });
 }
@@ -1981,6 +2049,9 @@ function focusNextSet(currentInput) {
   if (!panel) return;
   var exId = currentInput.dataset.ex;
   var setId = currentInput.dataset.set;
+  // Nur springen, wenn das Feld beim Fokus LEER war. Sonst wuerde der Cursor beim
+  // Aendern vorbefuellter Werte nach der ersten Ziffer wegspringen.
+  if (currentInput.dataset.wasEmpty !== '1') return;
   // Prüfen: ist der aktuelle Satz vollständig (Gewicht + Wdh.)?
   var weightInp = panel.querySelector('.weight-input[data-ex="' + exId + '"][data-set="' + setId + '"]');
   var repsInp = panel.querySelector('.reps-input[data-ex="' + exId + '"][data-set="' + setId + '"]');
