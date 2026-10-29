@@ -1,13 +1,13 @@
 {
   "name": "Trainings-Tracker",
   "short_name": "Training",
-  "description": "Trainingsplan mit Gewichts-Verlauf und Steigerungs-Übersicht",
+  "description": "Deine flexible Viererrotation mit Gewichten, Wiederholungen und Verlauf – auch offline.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#0f0f0f",
-  "theme_color": "#0f0f0f",
+  "background_color": "#101311",
+  "theme_color": "#101311",
   "icons": [
     { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
     { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" }

@@ -1,8 +1,10 @@
 /* Trainings-Tracker Service Worker — Offline-Cache */
-const CACHE = 'trainings-tracker-v10';
+const CACHE = 'trainings-tracker-v12';
 const ASSETS = [
   './',
   './index.html',
+  './styles.css',
+  './app.js',
   './manifest.webmanifest',
   './icon-180.png',
   './icon-192.png',
@@ -13,7 +15,6 @@ self.addEventListener('install', function(e) {
   e.waitUntil(
     caches.open(CACHE)
       .then(function(c) { return c.addAll(ASSETS); })
-      .then(function() { return self.skipWaiting(); })
   );
 });
 
@@ -21,7 +22,7 @@ self.addEventListener('activate', function(e) {
   e.waitUntil(
     caches.keys()
       .then(function(keys) {
-        return Promise.all(keys.filter(function(k) { return k !== CACHE; }).map(function(k) { return caches.delete(k); }));
+        return Promise.all(keys.filter(function(k) { return k.startsWith('trainings-tracker-') && k !== CACHE; }).map(function(k) { return caches.delete(k); }));
       })
       .then(function() { return self.clients.claim(); })
   );
@@ -30,11 +31,11 @@ self.addEventListener('activate', function(e) {
 self.addEventListener('fetch', function(e) {
   if (e.request.method !== 'GET') return;
   var url = new URL(e.request.url);
-  if (url.origin !== location.origin) return;
+  if (url.origin !== location.origin || !ASSETS.some(function(asset) { return new URL(asset, self.registration.scope).pathname === url.pathname; })) return;
   e.respondWith(
-    caches.match(e.request).then(function(cached) {
-      // Netzwerk im Hintergrund aktualisieren (stale-while-revalidate):
-      // offline -> Cache, online -> immer aktuelle Version, Cache wird aktualisiert
+    caches.open(CACHE).then(function(cache) { return cache.match(e.request, { ignoreSearch: true }); }).then(function(cached) {
+      // App-Shell einer Version zusammenhalten; Updates erst bewusst aktivieren.
+      if (cached) return cached;
       var network = fetch(e.request).then(function(res) {
         if (res && res.ok) {
           var copy = res.clone();
@@ -45,4 +46,8 @@ self.addEventListener('fetch', function(e) {
       return cached || network;
     })
   );
+});
+
+self.addEventListener('message', function(event) {
+  if (event.data && event.data.type === 'SKIP_WAITING') self.skipWaiting();
 });
