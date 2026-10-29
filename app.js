@@ -69,7 +69,7 @@ const LEGACY_DAYS = {
   'verlauf': { title: 'Verlauf', content: true }
 };
 
-const DAYS = {
+const PREVIOUS_DAYS = {
   "upper-a": {
     "title": "Oberkörper A",
     "exercises": [
@@ -313,6 +313,301 @@ const DAYS = {
         "name": "Beinbeuger sitzend",
         "sets": 3,
         "reps": "10–15",
+        "rir": "1–2",
+        "muscle": "legs",
+        "rest": 90,
+        "note": ""
+      },
+      {
+        "id": "lb-calf",
+        "name": "Wadenheben · einseitig",
+        "sets": 3,
+        "reps": "10–20",
+        "rir": "1–2",
+        "muscle": "calves",
+        "rest": 90,
+        "note": "Sätze je Seite. Kontrolliert über den verfügbaren Bewegungsumfang."
+      },
+      {
+        "id": "lb-knee-raises",
+        "name": "Hängendes Knieheben",
+        "sets": 2,
+        "reps": "10–20",
+        "rir": "1–2",
+        "muscle": "core",
+        "rest": 90,
+        "note": ""
+      }
+    ]
+  },
+  "schwach": {
+    "title": "Früherer Zusatzplan",
+    "exercises": []
+  },
+  "info": {
+    "title": "Einstellungen",
+    "content": true
+  },
+  "verlauf": {
+    "title": "Verlauf",
+    "content": true
+  }
+};
+
+const DAYS = {
+  "upper-a": {
+    "title": "Oberkörper A",
+    "exercises": [
+      {
+        "id": "ua-machine-chest",
+        "name": "Maschinen-Brustpresse",
+        "sets": 3,
+        "reps": "6–10",
+        "rir": "1–2",
+        "muscle": "chest",
+        "rest": 180,
+        "note": "Horizontal drücken. Sitz und Griffe passend einstellen; kontrolliert im schmerzfreien Bewegungsumfang. 1–2 saubere Wiederholungen in Reserve."
+      },
+      {
+        "id": "ub-tbar",
+        "name": "Brustgestütztes Kurzhantelrudern",
+        "sets": 3,
+        "reps": "8–12",
+        "rir": "1–2",
+        "muscle": "back",
+        "rest": 150,
+        "note": ""
+      },
+      {
+        "id": "ua-butterfly",
+        "name": "Butterfly",
+        "sets": 3,
+        "reps": "10–15",
+        "rir": "1–2",
+        "muscle": "chest",
+        "rest": 120,
+        "note": "Neue Übung: Gewicht neu wählen. Oberarme kontrolliert zusammenführen; keine erzwungene Dehnung."
+      },
+      {
+        "id": "ua-lat-pulldown",
+        "name": "Latzug",
+        "sets": 3,
+        "reps": "8–12",
+        "rir": "1–2",
+        "muscle": "back",
+        "rest": 150,
+        "note": ""
+      },
+      {
+        "id": "ua-lateral",
+        "name": "Seitheben",
+        "sets": 3,
+        "reps": "12–20",
+        "rir": "1–2",
+        "muscle": "shoulders",
+        "rest": 90,
+        "note": ""
+      },
+      {
+        "id": "ua-triceps-rope",
+        "name": "Trizepsdrücken am Seil",
+        "sets": 2,
+        "reps": "10–15",
+        "rir": "1–2",
+        "muscle": "arms",
+        "rest": 90,
+        "note": ""
+      },
+      {
+        "id": "ua-ez-curl",
+        "name": "EZ-Curls",
+        "sets": 2,
+        "reps": "10–15",
+        "rir": "1–2",
+        "muscle": "arms",
+        "rest": 90,
+        "note": ""
+      }
+    ]
+  },
+  "lower-a": {
+    "title": "Unterkörper A",
+    "exercises": [
+      {
+        "id": "la-bulgarian",
+        "name": "Bulgarian Split Squats",
+        "sets": 3,
+        "reps": "8–12",
+        "rir": "1–2",
+        "muscle": "legs",
+        "rest": 180,
+        "note": "Je Bein. Gleiche Tiefe und kontrollierte Ausführung. Startseite abwechseln."
+      },
+      {
+        "id": "la-legpress-bilateral",
+        "name": "Beinpresse · beidbeinig",
+        "sets": 3,
+        "reps": "10–15",
+        "rir": "1–2",
+        "muscle": "legs",
+        "rest": 150,
+        "note": "Neue Übungsvariante: Gewichte der früheren einseitigen Beinpresse nicht übernehmen."
+      },
+      {
+        "id": "la-leg-curl",
+        "name": "Beinbeuger sitzend",
+        "sets": 3,
+        "reps": "10–15",
+        "rir": "1–2",
+        "muscle": "legs",
+        "rest": 90,
+        "note": ""
+      },
+      {
+        "id": "la-calf",
+        "name": "Wadenheben",
+        "sets": 3,
+        "reps": "10–20",
+        "rir": "1–2",
+        "muscle": "calves",
+        "rest": 90,
+        "note": ""
+      },
+      {
+        "id": "la-cable-crunch",
+        "name": "Kabel-Crunches",
+        "sets": 2,
+        "reps": "10–20",
+        "rir": "1–2",
+        "muscle": "core",
+        "rest": 90,
+        "note": ""
+      }
+    ]
+  },
+  "upper-b": {
+    "title": "Oberkörper B",
+    "exercises": [
+      {
+        "id": "ub-incline-barbell",
+        "name": "Langhantel-Schrägbankdrücken",
+        "sets": 3,
+        "reps": "8–12",
+        "rir": "1–2",
+        "muscle": "chest",
+        "rest": 180,
+        "note": "Neue Variante: Maschinengewichte nicht übernehmen. Mit etwa 15–30° Bankneigung beginnen. Kontrolliert und schmerzfrei drücken; Sicherheitsablagen oder Hilfestellung nutzen."
+      },
+      {
+        "id": "ub-lat-pulldown",
+        "name": "Latzug · enger Griff",
+        "sets": 3,
+        "reps": "8–12",
+        "rir": "1–2",
+        "muscle": "back",
+        "rest": 150,
+        "note": ""
+      },
+      {
+        "id": "ub-cable-flys-flach",
+        "name": "Kabel-Flys · Brusthöhe",
+        "sets": 3,
+        "reps": "12–20",
+        "rir": "1–2",
+        "muscle": "chest",
+        "rest": 120,
+        "note": "Ellenbogen leicht gebeugt halten, Arme kontrolliert vor dem Körper zusammenführen. Gleiche Kabelhöhe und Ausführung für vergleichbare Werte."
+      },
+      {
+        "id": "ub-cable-row",
+        "name": "Kabelrudern sitzend",
+        "sets": 3,
+        "reps": "8–12",
+        "rir": "1–2",
+        "muscle": "back",
+        "rest": 150,
+        "note": ""
+      },
+      {
+        "id": "ub-lateral",
+        "name": "Seitheben",
+        "sets": 3,
+        "reps": "12–20",
+        "rir": "1–2",
+        "muscle": "shoulders",
+        "rest": 90,
+        "note": ""
+      },
+      {
+        "id": "ub-face-pulls",
+        "name": "Face Pulls",
+        "sets": 2,
+        "reps": "12–20",
+        "rir": "1–2",
+        "muscle": "shoulders",
+        "rest": 90,
+        "note": ""
+      },
+      {
+        "id": "ub-incline-curl",
+        "name": "Schrägbank-Curls",
+        "sets": 2,
+        "reps": "10–15",
+        "rir": "1–2",
+        "muscle": "arms",
+        "rest": 90,
+        "note": ""
+      },
+      {
+        "id": "ub-overhead-tri",
+        "name": "Trizepsstrecken über Kopf",
+        "sets": 2,
+        "reps": "10–15",
+        "rir": "1–2",
+        "muscle": "arms",
+        "rest": 90,
+        "note": ""
+      }
+    ]
+  },
+  "lower-b": {
+    "title": "Unterkörper B",
+    "exercises": [
+      {
+        "id": "lb-rdl",
+        "name": "Rumänisches Kreuzheben",
+        "sets": 3,
+        "reps": "6–10",
+        "rir": "2",
+        "muscle": "legs",
+        "rest": 180,
+        "note": "Hüfte nach hinten führen. Bewegung beenden, bevor die Rückenposition verloren geht."
+      },
+      {
+        "id": "lb-legpress-bilateral",
+        "name": "Beinpresse · beidbeinig",
+        "sets": 2,
+        "reps": "10–15",
+        "rir": "1–2",
+        "muscle": "legs",
+        "rest": 150,
+        "note": ""
+      },
+      {
+        "id": "lb-leg-curl",
+        "name": "Beinbeuger sitzend",
+        "sets": 3,
+        "reps": "10–15",
+        "rir": "1–2",
+        "muscle": "legs",
+        "rest": 90,
+        "note": ""
+      },
+      {
+        "id": "lb-extensions",
+        "name": "Beinstrecker",
+        "sets": 2,
+        "reps": "12–15",
         "rir": "1–2",
         "muscle": "legs",
         "rest": 90,
@@ -791,11 +1086,11 @@ function weekProgress(data) {
 function renderTodayHero() {
   const data = loadData();
   const cur = currentView;
-  const day = DAYS[cur];
+  const day = workoutDay(cur, data);
   const sets = day.exercises.reduce((sum, e) => sum + e.sets, 0);
   const count = getHistory(data).filter(h => ROTATION.includes(h.day) && weekKey(h.date) === weekKey(todayISO())).length;
   return '<section class="training-intro"><div class="eyebrow">DEIN TRAINING · ' + escapeHtml(fmtDateDE(new Date())) + '</div>' +
-    '<h1>' + escapeHtml(DAY_LABEL[cur]) + '</h1><p class="page-subtitle">' + day.exercises.length + ' Übungen · ' + sets + ' Arbeitssätze · ca. 60 Min.</p>' +
+    '<h1>' + escapeHtml(DAY_LABEL[cur]) + '</h1><p class="page-subtitle">' + day.exercises.length + ' Übungen · ' + sets + ' Arbeitssätze · ' + (workoutDraft(data,cur) && workoutDraft(data,cur).planVersion !== 2 ? 'bisheriger Plan' : 'Brustschwerpunkt') + '</p>' +
     '<div class="rotation-picker" aria-label="Trainingseinheit wählen">' + ROTATION.map((key, i) =>
       '<button aria-label="' + DAY_LABEL[key] + '" aria-pressed="' + (key === cur) + '" onclick="pickDay(\'' + key + '\')"><span>0' + (i+1) + '</span>' + DAY_LABEL[key].replace('Oberkörper','Ober').replace('Unterkörper','Unter') + '</button>').join('') + '</div>' +
     '<div class="rotation-caption">Fortlaufende Rotation · ' + count + ' / 4 Trainings diese Woche</div></section>';
@@ -860,7 +1155,7 @@ function fillSuggestion(exId, kg) {
   const dayKey = (function() {
     const dayKeys = Object.keys(DAYS);
     for (let i = 0; i < dayKeys.length; i++) {
-      const d = DAYS[dayKeys[i]];
+      const d = workoutDay(dayKeys[i],data);
       if (d.exercises && d.exercises.some(e => e.id === exId)) return dayKeys[i];
     }
     return '';
@@ -1001,7 +1296,8 @@ function isExDone(data, exId) {
 function toggleDone(exId) {
   if (!workoutDraft(loadData(),currentView) || !saveCurrentState()) return;
   const data = loadData();
-  const ex = allExercises().find(e => e.id === exId);
+  const ex = workoutDay(currentView,data).exercises.find(e => e.id === exId);
+  if (!ex) return;
   if (!data.__done__) data.__done__ = {};
   if (!data.__done__[exId] && !Array.from({length: ex.sets}, (_, i) => validSet((data[exId] || {})[i+1])).every(Boolean)) {
     notice('Bitte zuerst Gewicht und Wiederholungen für alle Sätze dieser Übung eintragen.'); return;
@@ -1019,7 +1315,7 @@ function toggleDone(exId) {
 }
 
 function updateProgress() {
-  const day = DAYS[currentView];
+  const day = workoutDay(currentView,loadData());
   const el = document.getElementById('session-progress');
   if (!day || !day.exercises || !el) return;
   const data = loadData();
@@ -1030,13 +1326,15 @@ function updateProgress() {
 /* ---------- Render ---------- */
 
 function renderDay(dayKey) {
-  const day = DAYS[dayKey];
+  const day = workoutDay(dayKey,loadData());
   const data = loadData();
   const draft = workoutDraft(data,dayKey);
   const disabled = draft ? '' : ' disabled';
+  const previousPlan = draft && draft.planVersion !== 2;
   const last = getHistory(data).filter(h => h.day === dayKey && h.day !== 'migration').at(-1);
   let html = '<section class="day-panel active" id="panel-' + dayKey + '"><div class="session-line"><span id="session-progress"></span>' + renderDurationChip() + '</div>';
   html += '<div class="workout-state"><h2>' + (draft ? (draft.recovered ? 'Übernommener Trainingsentwurf' : 'Training läuft') : 'Bereit für dein Training?') + '</h2><p>' + (draft ? 'Deine Eingaben bleiben beim Schließen der App erhalten. Letzte Werte werden nur in leere Felder übernommen.' : 'Starte eine neue Einheit mit leeren Feldern. Die letzten Leistungen bleiben unter den Feldern sichtbar.') + '</p>' + (last ? '<p>Letzte gespeicherte Einheit: ' + escapeHtml(formatDate(last.date)) + '</p>' : '') + '<div class="btn-row"><button class="btn primary" data-action="start-workout" onclick="startTraining(\'' + dayKey + '\')">' + (draft ? 'Training fortsetzen' : 'Neues Training starten') + '</button>' + (draft ? '<button class="btn" data-action="copy-last" onclick="copyLastValues(\'' + dayKey + '\')">Letzte Werte übernehmen</button><button class="text-btn" onclick="clearCurrentDay(\'' + dayKey + '\')">Neu beginnen</button>' : '') + '</div></div>';
+  if (previousPlan) html += '<p class="progression-hint">Dieses offene Training bleibt im bisherigen Plan erhalten. Nach dem Abschließen startet die nächste neue Einheit mit dem Brustschwerpunkt.</p>';
   day.exercises.forEach((ex, index) => {
     const lastE = getLastEntry(data, ex.id);
     const done = !!draft && isExDone(data, ex.id);
@@ -1090,7 +1388,7 @@ function renderRotationCard() {
 
 function renderInfo() {
   return '<section class="day-panel active" id="panel-info"><div class="eyebrow">DEINE APP</div><h1>Einstellungen</h1>' +
-    '<article class="info-card"><h2>Dein Trainingsrahmen</h2><p>Muskelaufbau · 4 flexible Einheiten · ca. 60 Minuten Krafttraining + 20 Minuten Gehen.</p><p>Erst Wiederholungen steigern. Wenn alle Sätze am oberen Ende gelingen und noch 1–2 saubere Wiederholungen möglich wären, den kleinsten passenden Gewichtsschritt wählen.</p><p>Mehrgelenkübungen: meist 2–3 Minuten Pause. Isolationen: meist 1–2 Minuten. Erholung nach Leistung und Befinden planen.</p><p>Orientierung Ernährung: etwa 1,6 g Protein pro Kilogramm Körpergewicht täglich. Kalorienzufuhr nach Ziel und Gewichtsverlauf anpassen.</p></article>' +
+    '<article class="info-card"><h2>Dein Trainingsrahmen</h2><p>Muskelaufbau mit Brustschwerpunkt · 4 flexible Einheiten · ohne feste Zeitgrenze. Optional danach 20 Minuten zügig gehen.</p><p>Oberkörper A → Unterkörper A → Oberkörper B → Unterkörper B. Nach Pausen fortsetzen, kein Neustart am Montag. Zwischen Oberkörpereinheiten möglichst mindestens etwa 48 Stunden Erholung.</p><p>12 Brustsätze pro vollständigem Durchlauf: horizontale Brustpresse und Butterfly an A, Langhantel-Schrägbank und Kabel-Flys an B. Brustdrücken steht jeweils zuerst. Aufwärmsätze zählen nicht als Arbeitssätze.</p><p>Trainingsblock: zunächst 8 Wochen dokumentieren. Solange Leistung und Erholung passen, Satzanzahl beibehalten. Bei mehreren stagnierenden Einheiten zuerst Technik, Belastung, Ernährung und Erholung prüfen.</p><p>Erst Wiederholungen steigern. Wenn alle Sätze am oberen Ende gelingen und noch 1–2 saubere Wiederholungen möglich wären, den kleinsten passenden Gewichtsschritt wählen.</p><p>Mehrgelenkübungen: meist 2–3 Minuten Pause, bei Bedarf länger. Isolationen: etwa 90–120 Sekunden. Meist 1–2 saubere Wiederholungen in Reserve (RIR), beim rumänischen Kreuzheben eher 2. Nicht jeden Satz bis zum Muskelversagen trainieren.</p><p>Orientierung Ernährung: etwa 1,6 g Protein pro Kilogramm Körpergewicht täglich. Kalorienzufuhr nach Ziel und Gewichtsverlauf anpassen.</p></article>' +
     '<article class="info-card"><h2>Auf dem iPhone installieren</h2><ol><li>Diese Seite in Safari öffnen.</li><li>Teilen antippen, dann „Zu Home-Bildschirm hinzufügen“ wählen.</li><li>Falls angeboten: „Als Web-App öffnen“ aktivieren und hinzufügen.</li><li>Die App über das neue Symbol öffnen.</li></ol><p>Nach dem ersten Laden funktioniert der Trainingsplan auch offline. Lokale Daten gehören zu diesem Gerät und dieser Webadresse: vor einem Wechsel ein Backup herunterladen.</p></article>' +
     '<article class="info-card" id="storage-info"><h2>Nur auf deinem iPhone</h2><p>Gewichte, Wiederholungen und Verlauf bleiben auf diesem Gerät. Es gibt keine Anmeldung, Server-Synchronisierung oder automatische Cloud-Sicherung.</p><p>Speichere regelmäßig ein Datei-Backup, zum Beispiel über „Dateien“ auf iCloud Drive. Die JSON-Datei ist nicht zusätzlich verschlüsselt. Bei Gerätewechsel oder gelöschten Website-Daten brauchst du dieses Backup.</p></article>' +
     '<article class="info-card" id="backup-card"><h2>Backup & Wiederherstellung</h2><p>Die JSON-Datei enthält den vollständigen Verlauf und offene Trainingsentwürfe. Speichere sie regelmäßig außerhalb dieser App. Eine lokale Sicherheitskopie ersetzt kein Datei-Backup.</p><div class="btn-row"><button class="btn primary" onclick="downloadBackup()">Backup herunterladen</button><button class="btn" onclick="exportBackup()">Als Text anzeigen</button></div><label for="backup-file">Backup-Datei vom Gerät laden</label><input class="backup-file" id="backup-file" type="file" accept=".json,application/json" onchange="importBackupFile(this)"><details><summary>Backup als Text wiederherstellen</summary><label for="backup-area">Backup-Text</label><textarea class="backup-area" id="backup-area" placeholder="JSON-Backup hier einfügen"></textarea><button class="btn" onclick="importBackup()">Backup wiederherstellen</button></details></article>' +
@@ -1106,6 +1404,7 @@ let __verlaufMetric = 'weight';
 function allExercises() {
   const byId = new Map();
   Object.values(LEGACY_DAYS).forEach(d => (d.exercises || []).forEach(e => byId.set(e.id, { ...e, name: e.name + ' · früherer Plan' })));
+  Object.values(PREVIOUS_DAYS).forEach(d => (d.exercises || []).forEach(e => byId.set(e.id, { ...e, name: e.name + ' · bisheriger Plan' })));
   Object.values(DAYS).forEach(d => (d.exercises || []).forEach(e => byId.set(e.id, e)));
   return [...byId.values()];
 }
@@ -1303,7 +1602,7 @@ function saveCurrentDay(dayKey) {
   const data = JSON.parse(JSON.stringify(before));
   const entries = {};
   let hasValues = false, incomplete = false, invalid = false;
-  DAYS[dayKey].exercises.forEach(ex => {
+  workoutDay(dayKey,data).exercises.forEach(ex => {
     entries[ex.id] = {};
     for (let s = 1; s <= ex.sets; s++) {
       const entry = normalizeEntry((data[ex.id] || {})[s]);
@@ -1318,8 +1617,8 @@ function saveCurrentDay(dayKey) {
   if (incomplete && !confirm('Einige Sätze sind unvollständig. Diese Einheit trotzdem speichern?')) return false;
   getHistory(data).push({date:todayISO(),day:dayKey,entries,session_id:draft.id});
   data.__dates__ = Object.assign({},data.__dates__,{[dayKey]:todayISO()});
+  workoutDay(dayKey,data).exercises.forEach(ex=>{delete data[ex.id];if(data.__done__)delete data.__done__[ex.id];});
   delete data.__drafts__[dayKey];
-  DAYS[dayKey].exercises.forEach(ex=>{delete data[ex.id];if(data.__done__)delete data.__done__[ex.id];});
   const next=nextRotationAfter(dayKey);
   data.__rotation__={index:ROTATION.indexOf(next),lastFinish:todayISO()};
   delete data.__today__;
@@ -1585,13 +1884,18 @@ function validateBackup(data) {
   return data;
 }
 
+function workoutDay(dayKey,data) {
+  const draft = workoutDraft(data,dayKey);
+  return draft && draft.planVersion !== 2 ? PREVIOUS_DAYS[dayKey] : DAYS[dayKey];
+}
+
 function workoutDraft(data,dayKey) {
   return data.__drafts__ && data.__drafts__[dayKey] || null;
 }
 function migrateWorkouts(data) {
   if (data.__workoutSchema__ === 1) return;
   data.__drafts__ = data.__drafts__ || {};
-  Object.entries(DAYS).forEach(([dayKey,day])=>{
+  Object.entries(PREVIOUS_DAYS).forEach(([dayKey,day])=>{
     if (!day.exercises || data.__drafts__[dayKey]) return;
     const last=getHistory(data).filter(h=>h.day===dayKey).at(-1);
     const hasValues=day.exercises.some(ex=>Object.values(data[ex.id]||{}).some(v=>{const n=normalizeEntry(v);return n.w||n.r;}));
@@ -1617,8 +1921,8 @@ function startTraining(dayKey,replace=false) {
     return;
   }
   data.__drafts__=data.__drafts__||{};
-  DAYS[dayKey].exercises.forEach(ex=>{delete data[ex.id];if(data.__done__)delete data.__done__[ex.id];});
-  data.__drafts__[dayKey]={id:crypto.randomUUID(),startedAt:Date.now()};
+  workoutDay(dayKey,data).exercises.forEach(ex=>{delete data[ex.id];if(data.__done__)delete data.__done__[ex.id];});
+  data.__drafts__[dayKey]={id:crypto.randomUUID(),startedAt:Date.now(),planVersion:2};
   data.__workoutSchema__=1;
   data.__today__={date:todayISO(),day:dayKey};
   if (!saveData(data)) { volatileData=before; return; }
@@ -1629,7 +1933,7 @@ function copyLastValues(dayKey) {
   const data=loadData();
   if (!workoutDraft(data,dayKey)) return;
   let filled=0;
-  DAYS[dayKey].exercises.forEach(ex=>{
+  workoutDay(dayKey,data).exercises.forEach(ex=>{
     const previous=getLastEntry(data,ex.id);
     if (!previous) return;
     for(let s=1;s<=ex.sets;s++){

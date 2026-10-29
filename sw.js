@@ -1,5 +1,5 @@
 /* Trainings-Tracker Service Worker — Offline-Cache */
-const CACHE = 'trainings-tracker-v14';
+const CACHE = 'trainings-tracker-v15';
 const ASSETS = [
   './',
   './index.html',

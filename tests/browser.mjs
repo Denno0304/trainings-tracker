@@ -214,6 +214,35 @@ try {
     migrateWorkouts(completed);migrateWorkouts(unfinished);
     return{completedDraft:workoutDraft(completed,'upper-a'),unfinished:!!workoutDraft(unfinished,'upper-a'),value:unfinished['ua-machine-chest'][1].w};
   });assert.deepEqual(migrations,{completedDraft:null,unfinished:true,value:'62,5'});pass('legacy migration distinguishes saved values and changed unfinished entries');
+  const planTransition=await page.evaluate(()=>{
+    window.__beforePlanTest=loadData();
+    const history=[{date:'2026-01-10',day:'upper-a',entries:{'ua-incline-smith':{1:{w:'65',r:'10'}}}}];
+    const old={__history__:history,__workoutSchema__:1,__drafts__:{'upper-a':{id:'before-update',startedAt:Date.now()},'upper-b':{id:'other-draft',startedAt:Date.now()}},'ua-incline-smith':{1:{w:'67,5',r:'9'}},'ub-incline-press':{1:{w:'70',r:'8'}}};
+    saveData(old,true);currentView='upper-a';renderAll();
+    const oldVisible=!!document.getElementById('card-ua-incline-smith') && !document.getElementById('card-ua-butterfly');
+    const oldValue=document.getElementById('w-ua-incline-smith-1').value;
+    for (const id of ['ua-lat-pulldown','ua-lateral']) {
+      document.querySelectorAll('[data-ex="'+id+'"]').forEach(input=>{input.value=input.classList.contains('weight-input')?'20':'12';});
+      document.querySelector('#card-'+id+' .check-btn').click();
+      if (!loadData().__done__[id]) throw new Error('Old draft must complete with its two visible sets: '+id);
+    }
+    const saved=saveCurrentDay('upper-a');
+    const finished=loadData();
+    startTraining('upper-a');copyLastValues('upper-a');
+    const next=loadData();
+    const newVisible=!!document.getElementById('card-ua-butterfly') && !document.getElementById('card-ua-incline-smith');
+    const freshButterfly=document.getElementById('w-ua-butterfly-1').value;
+    const beforeRestore=JSON.stringify(next);
+    restoreBackup(validateBackup(JSON.parse(beforeRestore)));
+    const restored=loadData();
+    const all=allExercises().map(e=>e.id);
+    const counts=Object.fromEntries(ROTATION.map(day=>[day,DAYS[day].exercises.reduce((n,e)=>n+(e.muscle==='chest'?e.sets:0),0)]));
+    const result={oldVisible,oldValue,saved,newVisible,freshButterfly,originalHistory:JSON.stringify(finished.__history__[0])===JSON.stringify(history[0]),savedOldValue:finished.__history__[1].entries['ua-incline-smith'][1].w,otherDraft:restored.__drafts__['upper-b'].id,newVersion:restored.__drafts__['upper-a'].planVersion,oldVersion:workoutDay('upper-b',restored).exercises[0].id,retired:all.includes('ua-incline-smith')&&all.includes('ub-incline-press'),counts,barbell:DAYS['upper-b'].exercises[0].id,newExerciseHasOldValues:!!getLastEntry(restored,'ub-incline-barbell')};
+    saveData(window.__beforePlanTest,true);delete window.__beforePlanTest;currentView='upper-a';renderAll();return result;
+  });
+  assert.deepEqual(planTransition,{oldVisible:true,oldValue:'67,5',saved:true,newVisible:true,freshButterfly:'',originalHistory:true,savedOldValue:'67,5',otherDraft:'other-draft',newVersion:2,oldVersion:'ub-incline-press',retired:true,counts:{'upper-a':6,'lower-a':0,'upper-b':6,'lower-b':0},barbell:'ub-incline-barbell',newExerciseHasOldValues:false});
+  await writeFile(join(evidence,'plan-transition.json'),JSON.stringify(planTransition,null,2));
+  pass('plan update preserves old drafts, retired exercise history and backup roundtrip; new exercises start empty');
   const captures=[];
   for(const width of [390,1440])for(const theme of ['dark','light']){
     await page.cdp.send('Emulation.setEmulatedMedia',{features:[{name:'prefers-color-scheme',value:theme}]},sid);

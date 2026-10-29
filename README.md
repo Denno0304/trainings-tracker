@@ -5,7 +5,8 @@ Persönliche, installierbare Web-App für vier flexible Trainingseinheiten. Kein
 ## Nutzen
 
 - Oberkörper A → Unterkörper A → Oberkörper B → Unterkörper B, ohne feste Wochentage.
-- Plan für ca. 60 Minuten Krafttraining plus 20 Minuten zügiges Gehen. Die tatsächliche Dauer hängt von Pausen, Gerätebelegung und Aufwärmen ab.
+- Brustschwerpunkt mit 12 direkten Brustsätzen pro vollständigem Vierer-Durchlauf, ohne feste Zeitgrenze. Optional danach 20 Minuten zügig gehen.
+- Bereits offene Trainings behalten die bisherige Übungsauswahl und Satzanzahl. Der neue Plan gilt für neu gestartete Einheiten. Alte Verläufe bleiben unverändert; Langhantel-Schrägbank und Butterfly haben eigene Kennungen.
 - Gewicht mit Komma oder Punkt, Wiederholungen, ausdrücklicher Übungsabschluss und Pausentimer.
 - Eingaben bleiben beim Tippen im Feld. Zurück/Weiter/Fertig in einer eigenen Eingabeleiste.
 - Verlauf einschließlich früherer Übungen; getrennte Kennungen für beidbeinige und frühere einbeinige Beinpresse.
