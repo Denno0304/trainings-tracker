@@ -1,14 +1,14 @@
 /* Trainings-Tracker Service Worker — Offline-Cache */
-const CACHE = 'trainings-tracker-v13';
+const CACHE = 'trainings-tracker-v14';
 const ASSETS = [
   './',
   './index.html',
   './styles.css',
   './app.js',
   './manifest.webmanifest',
-  './icon-180.png',
-  './icon-192.png',
-  './icon-512.png'
+  './training-icon-180-v2.png',
+  './training-icon-192-v2.png',
+  './training-icon-512-v2.png'
 ];
 
 self.addEventListener('install', function(e) {
