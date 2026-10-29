@@ -367,7 +367,9 @@ function escapeHtml(value) {
 }
 function numericValue(value) {
   const text = String(value ?? '').trim();
-  return /^\d+(?:[.,]\d+)?$/.test(text) ? Number(text.replace(',', '.')) : null;
+  if (!/^\d+(?:[.,]\d+)?$/.test(text)) return null;
+  const number=Number(text.replace(',', '.'));
+  return Number.isFinite(number) ? number : null;
 }
 function validSet(entry) {
   const n = normalizeEntry(entry);
@@ -473,8 +475,8 @@ function formatDate(iso) {
 function maxWeight(entry) {
   let max = null;
   Object.values(entry || {}).forEach(v => {
-    const n = parseFloat(String(normalizeEntry(v).w).replace(',', '.'));
-    if (!isNaN(n) && (max === null || n > max)) max = n;
+    const n = numericValue(normalizeEntry(v).w);
+    if (n !== null && (max === null || n > max)) max = n;
   });
   return max;
 }
@@ -488,9 +490,9 @@ function volumeForEntry(entry) {
   let total = 0, hasReps = false;
   Object.values(entry || {}).forEach(v => {
     const n = normalizeEntry(v);
-    const w = parseFloat(String(n.w).replace(',', '.'));
-    const r = parseFloat(String(n.r).replace(',', '.'));
-    if (!isNaN(w) && !isNaN(r) && r > 0) { total += w * r; hasReps = true; }
+    const w = numericValue(n.w);
+    const r = numericValue(n.r);
+    if (w !== null && r !== null && Number.isInteger(r) && r > 0) { total += w * r; hasReps = true; }
   });
   return hasReps ? Math.round(total * 10) / 10 : null;
 }
@@ -1351,6 +1353,8 @@ function resetAll() {
 function exportBackup() {
   const area = document.getElementById('backup-area');
   area.value = JSON.stringify(backupData(), null, 2);
+  area.closest('details').open=true;
+  area.scrollIntoView({block:'nearest'});
   notice('Backup-Text bereit. Er enthält Verlauf und offene Trainingsentwürfe.');
 }
 
@@ -1367,26 +1371,47 @@ function flashBackupBtn(msg) {
 function importBackup() {
   let parsed;
   try { parsed = validateBackup(JSON.parse(document.getElementById('backup-area').value)); }
-  catch (error) { notice('Backup konnte nicht geladen werden: ' + error.message); return; }
+  catch (error) { backupNotice('Backup konnte nicht geladen werden: ' + error.message); return; }
   restoreBackup(parsed);
 }
 
 function restoreBackup(parsed) {
   if (!confirm('Aktuelle Daten durch dieses Backup ersetzen? Eine lokale Sicherheitskopie wird angelegt.')) return;
   const before=loadData();
-  if (!stashLocal(before)) { notice('Keine Sicherheitskopie möglich. Die aktuellen Daten bleiben erhalten.'); return; }
+  if (!stashLocal(before)) { backupNotice('Keine Sicherheitskopie möglich. Die aktuellen Daten bleiben erhalten.'); return; }
   delete parsed.__sync__;
   migrateWorkouts(parsed);
   if (!saveData(parsed)) { volatileData=before; return; }
-  renderAll(); notice('Backup wiederhergestellt. Verlauf und offene Entwürfe sind verfügbar.');
+  const legacyValues=hasLegacyBackupValues(parsed);
+  renderAll();
+  backupNotice('Backup wiederhergestellt. Verlauf und offene Entwürfe sind verfügbar.' + (legacyValues ? ' Einige ältere Angaben sind keine gültigen Zahlen. Sie wurden unverändert erhalten und werden nicht als Zahlen ausgewertet. Bitte vor der nächsten Verwendung prüfen.' : ''));
+}
+
+function backupNotice(message) {
+  notice(message);
+  let feedback=document.getElementById('backup-feedback');
+  if (!feedback) {
+    feedback=document.createElement('p');feedback.id='backup-feedback';feedback.setAttribute('role','status');
+    document.getElementById('backup-card')?.append(feedback);
+  }
+  feedback.textContent=message;
+  feedback.scrollIntoView({block:'nearest'});
+}
+
+function hasLegacyBackupValues(data) {
+  const groups=[Object.fromEntries(Object.entries(data).filter(([key])=>!key.startsWith('__'))),...(data.__history__||[]).map(h=>h.entries)];
+  return groups.some(entries=>Object.values(entries||{}).some(sets=>Object.values(sets||{}).some(value=>{
+    const n=normalizeEntry(value),reps=numericValue(n.r);
+    return (n.w && numericValue(n.w)===null) || (n.r && (reps===null || !Number.isInteger(reps) || reps<1));
+  })));
 }
 
 async function importBackupFile(input) {
   const file=input.files?.[0];
   if (!file) return;
-  if (file.size>10*1024*1024) { notice('Die Backup-Datei ist größer als 10 MB und kann hier nicht geladen werden.'); input.value=''; return; }
+  if (file.size>10*1024*1024) { backupNotice('Die Backup-Datei ist größer als 10 MB und kann hier nicht geladen werden.'); input.value=''; return; }
   try { restoreBackup(validateBackup(JSON.parse(await file.text()))); }
-  catch(error) { notice('Backup konnte nicht geladen werden: '+error.message); }
+  catch(error) { backupNotice('Backup konnte nicht geladen werden: '+error.message); }
   input.value='';
 }
 
@@ -1540,8 +1565,8 @@ function validateBackup(data) {
       if (!/^[a-z0-9-]+$/.test(id) || !sets || typeof sets !== 'object' || Array.isArray(sets)) throw new Error('Ungültige Übung.');
       for (const [s, entry] of Object.entries(sets)) {
         if (!/^\d+$/.test(s)) throw new Error('Ungültige Satznummer.');
-        const n = normalizeEntry(entry);
-        if ((n.w && numericValue(n.w) === null) || (n.r && (numericValue(n.r) === null || !Number.isInteger(numericValue(n.r)) || numericValue(n.r) < 1))) throw new Error('Ungültiger Zahlenwert.');
+        const fields=entry && typeof entry==='object' ? [entry.w,entry.r] : [entry];
+        if (Array.isArray(entry) || fields.some(value=>value!==null && value!==undefined && !((typeof value==='string' && !/[<>\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(value)) || (typeof value==='number' && Number.isFinite(value))))) throw new Error('Ungültige Angabe bei '+id+', Satz '+s+'.');
       }
     }
   };
