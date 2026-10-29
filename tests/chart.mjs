@@ -1,0 +1,15 @@
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import vm from 'node:vm';
+const source = await readFile(new URL('../app.js',import.meta.url),'utf8');
+const start = source.indexOf('function drawVerlaufChart(');
+const code = source.slice(start,source.indexOf('\n}',start)+2);
+let segments = 0;
+const finite = (x,y) => { assert.ok(Number.isFinite(x) && Number.isFinite(y),'History chart must draw finite coordinates for stored values'); segments++; };
+const ctx = {scale(){},clearRect(){},beginPath(){},moveTo:finite,lineTo:finite,stroke(){},fill(){},fillText(){},closePath(){},arc:finite,createLinearGradient(){return {addColorStop(){}};}};
+const canvas = {getBoundingClientRect:()=>({width:320,height:220}),getContext:()=>ctx};
+const context = vm.createContext({document:{getElementById:()=>canvas,documentElement:{}},window:{devicePixelRatio:1},loadData:()=>({}),getMetricPoints:()=>[{date:'2026-01-01',v:40},{date:'2026-02-01',v:45}],__verlaufEx:'ua-machine-chest',fmtKg:String,formatDate:String,getComputedStyle:()=>({getPropertyValue:()=> '#aabbcc'})});
+vm.runInContext(code,context);
+vm.runInContext('drawVerlaufChart()',context);
+assert.ok(segments>10);
+console.log('PASS: multi-point history chart uses finite coordinates');
