@@ -3,6 +3,8 @@
 ## 1. Identity
 Personal gym log for an iPhone, in German. Quiet graphite surfaces, a fresh lime action accent, large tabular numbers, clear vertical set rows. One exercise occupies one reusable card. No decorative imagery or external font requests. Inspiration: native iOS grouped lists and bottom navigation (Apple reference); original app supplies the exercise/history model, not the new visual composition.
 
+Home-screen icon: opaque graphite square with one bold lime dumbbell, rendered with restrained depth. Generated raster asset, 180px Apple touch icon and 192/512px PWA icons. No letters, small text or pre-rounded outer corners; iOS provides the mask. Versioned filenames avoid reusing old icon URLs. Existing workout storage, manifest start_url and scope stay unchanged.
+
 ## 2. Color
 Dark: canvas #101311, surface #1a201c, raised #252d27, text #f1f5ed, secondary #b2bfb3, accent #c8f07a, on-accent #1b2811, divider #354038, error #ffb4a8, success #a5d6a7. Light: canvas #f1f4ed, surface #ffffff, raised #e5eadf, text #18211a, secondary #526052, accent #d1ed9a, on-accent #1b2811, divider #c9d2c4, error #a52a1b, success #286331. State expressed through tonal fill and check glyphs, focus-visible ring only.
 
