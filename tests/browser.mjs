@@ -170,10 +170,31 @@ try {
   assert.equal(await page.evaluate(()=>Object.keys(localStorage).some(k=>k.startsWith(STORAGE_KEY+'-backup-'))),true);
   pass('JSON file restore retains history and multiple open drafts with safety copy');
   const invalid=await page.evaluate(()=>{try{validateBackup({__drafts__:{'upper-a':{id:'bad',startedAt:'yesterday'}}});return false;}catch{return true;}});assert.equal(invalid,true);
-  await page.locator('details:has(#backup-area) summary').click();
+  await page.evaluate(()=>{document.getElementById('backup-area').closest('details').open=true;});
   await page.locator('#backup-area').fill('{"ua-machine-chest":{"1":{"w":"<img src=x>","r":"10"}}}');
   await page.evaluate(()=>importBackup());assert.equal(await page.evaluate(()=>loadData().__history__.length),4);
   pass('invalid backups are rejected without replacing data');
+  const legacyText=JSON.stringify({'ua-machine-chest':{1:{w:'62,',r:'0'}},__history__:[{date:'2026-01-01',day:'upper-a',entries:{'ua-machine-chest':{1:{w:'60 kg',r:'—'}}}}]});
+  await page.locator('#backup-area').fill(legacyText);
+  await page.locator('button[onclick="importBackup()"]') .click();
+  assert.deepEqual(await page.evaluate(()=>loadData()['ua-machine-chest'][1]),{w:'62,',r:'0'});
+  assert.equal(await page.evaluate(()=>loadData().__history__[0].entries['ua-machine-chest'][1].w),'60 kg');
+  assert.ok(await page.evaluate(()=>document.getElementById('backup-feedback').textContent.includes('unverändert')));
+  for(const width of [390,1440])for(const theme of ['dark','light']){
+    await page.cdp.send('Emulation.setEmulatedMedia',{features:[{name:'prefers-color-scheme',value:theme}]},sid);
+    await omowright.emulate(page,{width,height:844,deviceScaleFactor:1,mobile:width<768,hasTouch:width<768});
+    await page.evaluate(()=>document.getElementById('backup-feedback').scrollIntoView({block:'center'}));
+    await writeFile(join(evidence,`legacy-text-import-${width}-${theme}.png`),await page.screenshot({clip:{x:0,y:await page.evaluate(()=>scrollY),width,height:844}}));
+  }
+  await page.goto(origin);
+  assert.equal(await page.evaluate(()=>document.querySelector('.weight-input').value),'62,');
+  assert.equal(await page.evaluate(()=>document.querySelector('.weight-input').getAttribute('aria-invalid')),'true');
+  await page.locator('nav [data-page="info"]').click();
+  await page.evaluate(()=>{document.getElementById('backup-area').closest('details').open=true;});
+  await page.locator('#backup-area').fill(backup);
+  await page.locator('button[onclick="importBackup()"]') .click();
+  assert.equal(await page.evaluate(()=>loadData()['ua-machine-chest'][1].w),'77,5');
+  pass('legacy backup text restores unchanged with visible warning; strict new-training validation remains');
   await page.locator('nav [data-page="training"]').click();
   const quota=await page.evaluate(()=>{currentView='upper-a';renderAll();const original=Storage.prototype.setItem;Storage.prototype.setItem=()=>{throw new DOMException('quota','QuotaExceededError');};const input=document.querySelector('.weight-input');input.focus();input.value='78,5';input.dispatchEvent(new Event('input',{bubbles:true}));const result={w:loadData()['ua-machine-chest'][1].w,error:document.getElementById('save-status').classList.contains('error')};Storage.prototype.setItem=original;saveData(loadData(),true);return result;});
   assert.deepEqual(quota,{w:'78,5',error:true});await page.locator('[data-input-action="done"]').click();pass('storage error remains visible and draft stays recoverable');

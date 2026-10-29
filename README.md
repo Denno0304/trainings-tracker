@@ -38,6 +38,7 @@ Mit Node.js 22 oder neuer:
 node --check app.js
 node --check sw.js
 node tests/chart.mjs
+node tests/backup.mjs
 node tests/browser.mjs
 ```
 
@@ -48,5 +49,7 @@ Der Browser-Test benötigt die vorhandene Omowright-Skill-Laufzeit und einen ins
 `node tests/browser.mjs --previous-version` prüft den bewussten Trainingsstart gegen die vorherige Entwurfsfassung a713af9 und muss dort scheitern, weil Eingaben ohne Trainingsstart bereits bearbeitbar waren.
 
 ## Grenzen der bisherigen Prüfung
+
+Alte Backups dürfen historische Freitextangaben oder unvollständige Zahlen enthalten. Der Import bewahrt diese Werte unverändert und meldet einen Hinweis. Sie fließen nicht als vermeintliche Zahlen in Diagramme oder Volumenberechnungen ein; neue Trainings müssen vor dem Abschluss weiterhin gültige Zahlen enthalten.
 
 Die Browserprüfung umfasst echtes Microsoft Edge mit mobiler Emulation, beide Farbschemata, schmale und breite Ansichten, Trainingsstart/Fortsetzung/Wertübernahme, Dateiwiederherstellung, lokalen Speicher, Netzwerkbeobachtung und Offline-Neuladen. Eine reale iPhone-/Safari-Tastatur und die Installation auf einem physischen iPhone wurden nicht geprüft. Der frühere Heimserver war offline und wurde nicht sicherheitsfreigegeben; diese Fassung verwendet ihn nicht. Ein Lighthouse-Score wird nicht behauptet.
