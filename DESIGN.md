@@ -15,15 +15,16 @@ System -apple-system/BlinkMacSystemFont/Segoe UI/sans-serif, no download. Sizes:
 ## 5. Reusable components
 - App shell: header with local save status, main, bottom 3-tab navigation (Training/Verlauf/Einstellungen).
 - Rotation picker: four equal buttons, selected tonal fill, aria-pressed; optional legacy workout in settings only.
+- Workout lifecycle: idle view shows empty disabled fields plus prior values and a primary "Neues Training starten" button. Active drafts survive reloads and date changes. "Letzte Werte übernehmen" fills only empty fields, never completed checks. Restart requires confirmation; finish saves one separate session and clears that day's draft.
 - Exercise card: name, prescription, optional technique details, set grid (Satz/kg/Wdh.), prior values as supporting text, explicit complete toggle, rest control.
 - Set row: linked visible labels plus unique accessible names; decimal weight keyboard, integer reps keyboard, Enter moves to the next field. Editing does not move focus. Validation feedback uses aria-invalid plus inline explanation.
 - Action button: primary lime, secondary raised, destructive text in error color; focus-visible, hover, pressed, disabled, loading states.
-- Status: saved locally, pending server, offline, storage error, update available. Never claim server persistence before acknowledgement.
+- Status: saved on this device, storage error, update available. No server synchronization or training-data network requests.
 - Backup: downloadable JSON plus text fallback; validated replacement requires confirmation and retains a safety copy.
 - History: current and retired exercises in one labelled native select, no nested scrolling pane or conversion between single-leg and bilateral loads.
 
 ## 6. Interaction
-120ms opacity/transform feedback; no decorative animation. Reduced motion removes positional changes. Save each input locally immediately; remote calls debounce. No forced updates during editing. Explicit completion asks before saving incomplete entries. Consecutive rotations independent of calendar week.
+120ms opacity/transform feedback; no decorative animation. Reduced motion removes positional changes. Save each input locally immediately. Manual JSON backups only; no server discovery or synchronization. No forced updates during editing. Explicit completion asks before saving incomplete entries. Consecutive rotations independent of calendar week.
 
 ## 7. Depth
 Tonal surface separation with neutral dividers within tables. No colored card outlines or muscle stripes. Header uses a quiet translucent surface; cards have no ornamental gradients. Icons use a small shared inline SVG helper; no icon font or new dependency.

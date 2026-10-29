@@ -358,8 +358,8 @@ DAYS.schwach.exercises = LEGACY_DAYS.schwach.exercises;
 const STORAGE_KEY = 'training-tracker-data';
 
 let currentView = 'upper-a';
-let localRevision = 0;
-let pendingRemote = false;
+
+
 let saveFailure = false;
 let volatileData = null;
 function escapeHtml(value) {
@@ -430,10 +430,6 @@ function loadData() {
 }
 
 function saveData(data, silent) {
-  if (!silent && !window.__applyingRemote) {
-    localRevision++;
-    data.__sync__ = Object.assign({}, data.__sync__, { updatedAt: Math.max(Date.now(), ((data.__sync__ || {}).updatedAt || 0) + 1), pending: true });
-  }
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     volatileData = null;
@@ -449,7 +445,6 @@ function saveData(data, silent) {
     document.getElementById('notice').dataset.kind = 'storage';
     return false;
   }
-  if (!silent && window.__syncReady && !window.__applyingRemote) queuePush();
   return true;
 }
 
@@ -678,7 +673,11 @@ function pickedDay(data) {
 
 /* Heute relevant: eigene Wahl schlaegt Vorschlag */
 function currentRotationDay(data) {
-  return pickedDay(data) || ROTATION[rotationIndex(data)];
+  const picked=pickedDay(data);
+  if (picked) return picked;
+  const drafts=Object.entries(data.__drafts__||{}).filter(([day])=>DAYS[day]?.exercises);
+  drafts.sort((a,b)=>b[1].startedAt-a[1].startedAt);
+  return drafts[0]?.[0] || ROTATION[rotationIndex(data)];
 }
 
 /* Einheit selbst waehlen (statt von Plan zu Plan) */
@@ -948,18 +947,12 @@ function fmtTime(s) {
 let __saveTimer = null;
 
 function autoSave() {
-  startSessionIfNeeded();
   saveCurrentState();
 }
 
 /* Feature 8: Trainings-Session (Dauer) */
 function startSessionIfNeeded() {
-  if (!DAYS[currentView] || DAYS[currentView].content) return;
-  const data = loadData();
-  if (!data.__session__ || data.__session__.day !== currentView || data.__session__.date !== todayISO()) {
-    data.__session__ = { day: currentView, date: todayISO(), startedAt: Date.now() };
-    saveData(data);
-  }
+  return !!workoutDraft(loadData(), currentView);
 }
 
 function formatDuration(ms) {
@@ -972,37 +965,16 @@ function formatDuration(ms) {
 
 /* Dauer-Chip für die Heute-Karte */
 function renderDurationChip() {
-  const data = loadData();
-  const s = data.__session__;
-  const today = todayISO();
-  const hist = getHistory(data);
-  if ((!s || s.day !== currentView) && hist.some(h => h.date === today && h.day === currentView)) {
-    const last = hist.filter(h => h.date === today && h.day === currentView).pop();
-    if (last && last.duration_min) {
-      return '<span class="duration-chip">Dauer ' + formatDuration(last.duration_min * 60000) + '</span>';
-    }
-    return '';
-  }
-  if (s && s.day === currentView && s.date === today && s.startedAt) {
-    return '<span class="duration-chip live" id="live-duration">Dauer ' + formatDuration(Date.now() - s.startedAt) + '</span>';
-  }
-  return '';
+  const draft = workoutDraft(loadData(), currentView);
+  if (!draft) return '';
+  return '<span class="duration-chip">Begonnen ' + escapeHtml(new Date(draft.startedAt).toLocaleString('de-DE',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})) + '</span>';
 }
-
-/* Live-Timer-Tick: alle 30s die Chip-Anzeige aktualisieren */
-setInterval(function() {
-  const el = document.getElementById('live-duration');
-  if (el) {
-    const data = loadData();
-    const s = data.__session__;
-    if (s && s.startedAt) el.textContent = 'Dauer ' + formatDuration(Date.now() - s.startedAt);
-  }
-}, 30000);
 
 function saveCurrentState() {
   const inputs = document.querySelectorAll('.weight-input, .reps-input');
   if (!inputs.length) return true;
   const data = loadData();
+  if (!workoutDraft(data, currentView)) return true;
   let changed = false;
   inputs.forEach(inp => {
     const exId = inp.dataset.ex, setId = inp.dataset.set;
@@ -1025,7 +997,7 @@ function isExDone(data, exId) {
 }
 
 function toggleDone(exId) {
-  if (!saveCurrentState()) return;
+  if (!workoutDraft(loadData(),currentView) || !saveCurrentState()) return;
   const data = loadData();
   const ex = allExercises().find(e => e.id === exId);
   if (!data.__done__) data.__done__ = {};
@@ -1049,7 +1021,7 @@ function updateProgress() {
   const el = document.getElementById('session-progress');
   if (!day || !day.exercises || !el) return;
   const data = loadData();
-  const done = day.exercises.filter(ex => isExDone(data, ex.id)).length;
+  const done = workoutDraft(data,currentView) ? day.exercises.filter(ex => isExDone(data, ex.id)).length : 0;
   el.textContent = done + ' / ' + day.exercises.length + ' Übungen abgeschlossen';
 }
 
@@ -1058,25 +1030,27 @@ function updateProgress() {
 function renderDay(dayKey) {
   const day = DAYS[dayKey];
   const data = loadData();
+  const draft = workoutDraft(data,dayKey);
+  const disabled = draft ? '' : ' disabled';
   const last = getHistory(data).filter(h => h.day === dayKey && h.day !== 'migration').at(-1);
   let html = '<section class="day-panel active" id="panel-' + dayKey + '"><div class="session-line"><span id="session-progress"></span>' + renderDurationChip() + '</div>';
-  if (last) html += '<div class="resume-note">Letzte Einheit: ' + escapeHtml(formatDate(last.date)) + '. Gespeicherte Werte bleiben sichtbar. <button class="text-btn" onclick="clearCurrentDay(\'' + dayKey + '\')">Neue Einträge beginnen</button></div>';
+  html += '<div class="workout-state"><h2>' + (draft ? (draft.recovered ? 'Übernommener Trainingsentwurf' : 'Training läuft') : 'Bereit für dein Training?') + '</h2><p>' + (draft ? 'Deine Eingaben bleiben beim Schließen der App erhalten. Letzte Werte werden nur in leere Felder übernommen.' : 'Starte eine neue Einheit mit leeren Feldern. Die letzten Leistungen bleiben unter den Feldern sichtbar.') + '</p>' + (last ? '<p>Letzte gespeicherte Einheit: ' + escapeHtml(formatDate(last.date)) + '</p>' : '') + '<div class="btn-row"><button class="btn primary" data-action="start-workout" onclick="startTraining(\'' + dayKey + '\')">' + (draft ? 'Training fortsetzen' : 'Neues Training starten') + '</button>' + (draft ? '<button class="btn" data-action="copy-last" onclick="copyLastValues(\'' + dayKey + '\')">Letzte Werte übernehmen</button><button class="text-btn" onclick="clearCurrentDay(\'' + dayKey + '\')">Neu beginnen</button>' : '') + '</div></div>';
   day.exercises.forEach((ex, index) => {
     const lastE = getLastEntry(data, ex.id);
-    const done = isExDone(data, ex.id);
+    const done = !!draft && isExDone(data, ex.id);
     html += '<article class="ex-card' + (done ? ' done' : '') + '" id="card-' + ex.id + '"><div class="ex-header"><span class="ex-number">' + String(index+1).padStart(2,'0') + '</span><div><h2 class="ex-name">' + escapeHtml(ex.name) + '</h2><p class="ex-meta">' + ex.sets + ' × ' + ex.reps + ' Wdh. · ' + ex.rir + ' RIR</p></div></div>';
     if (ex.note) html += '<details class="technique"><summary>Ausführung & Hinweise</summary><p>' + escapeHtml(ex.note) + '</p></details>';
     if (lastE) html += '<p class="progression-hint">' + progressionHint(ex, lastE.weights) + '</p>';
     html += '<div class="sets-table"><div class="set-heading"><span>Satz</span><span>Gewicht · kg</span><span>Wiederholungen</span></div>';
     for (let s = 1; s <= ex.sets; s++) {
-      const val = normalizeEntry((data[ex.id] || {})[s]);
+      const val = normalizeEntry(draft ? (data[ex.id] || {})[s] : null);
       const prev = normalizeEntry(lastE && lastE.weights[s]);
-      html += '<div class="set-row"><span class="set-number">' + s + '</span><div class="field"><label class="sr-only" for="w-' + ex.id + '-' + s + '">' + escapeHtml(ex.name) + ', Satz ' + s + ', Gewicht in Kilogramm</label><input id="w-' + ex.id + '-' + s + '" type="text" inputmode="decimal" enterkeyhint="next" class="weight-input" data-ex="' + ex.id + '" data-set="' + s + '" placeholder="–" value="' + escapeHtml(val.w) + '" autocomplete="off" spellcheck="false"><span class="previous">' + (prev.w ? 'Zuletzt ' + escapeHtml(prev.w) + ' kg' : 'Noch kein Wert') + '</span></div>';
-      html += '<div class="field"><label class="sr-only" for="r-' + ex.id + '-' + s + '">' + escapeHtml(ex.name) + ', Satz ' + s + ', Wiederholungen</label><input id="r-' + ex.id + '-' + s + '" type="text" inputmode="numeric" enterkeyhint="next" class="reps-input" data-ex="' + ex.id + '" data-set="' + s + '" placeholder="–" value="' + escapeHtml(val.r) + '" autocomplete="off"><span class="previous">' + (prev.r ? 'Zuletzt ' + escapeHtml(prev.r) + ' Wdh.' : 'Ziel ' + ex.reps) + '</span></div></div>';
+      html += '<div class="set-row"><span class="set-number">' + s + '</span><div class="field"><label class="sr-only" for="w-' + ex.id + '-' + s + '">' + escapeHtml(ex.name) + ', Satz ' + s + ', Gewicht in Kilogramm</label><input id="w-' + ex.id + '-' + s + '" ' + disabled + ' type="text" inputmode="decimal" enterkeyhint="next" class="weight-input" data-ex="' + ex.id + '" data-set="' + s + '" placeholder="–" value="' + escapeHtml(val.w) + '" autocomplete="off" spellcheck="false"><span class="previous">' + (prev.w ? 'Zuletzt ' + escapeHtml(prev.w) + ' kg' : 'Noch kein Wert') + '</span></div>';
+      html += '<div class="field"><label class="sr-only" for="r-' + ex.id + '-' + s + '">' + escapeHtml(ex.name) + ', Satz ' + s + ', Wiederholungen</label><input id="r-' + ex.id + '-' + s + '" ' + disabled + ' type="text" inputmode="numeric" enterkeyhint="next" class="reps-input" data-ex="' + ex.id + '" data-set="' + s + '" placeholder="–" value="' + escapeHtml(val.r) + '" autocomplete="off"><span class="previous">' + (prev.r ? 'Zuletzt ' + escapeHtml(prev.r) + ' Wdh.' : 'Ziel ' + ex.reps) + '</span></div></div>';
     }
-    html += '</div><p class="validation-message" id="validation-' + ex.id + '" role="status"></p><div class="exercise-footer"><button class="check-btn" aria-pressed="' + done + '" onclick="toggleDone(\'' + ex.id + '\')">' + icon('check') + (done ? 'Erledigt' : 'Übung abschließen') + '</button><button class="timer-btn" data-ex="' + ex.id + '" onclick="toggleTimer(\'' + ex.id + '\')" aria-label="Pausentimer für ' + escapeHtml(ex.name) + '">' + icon('timer') + '<span id="timer-run-' + ex.id + '">' + fmtTime(ex.rest || 90) + '</span></button></div></article>';
+    html += '</div><p class="validation-message" id="validation-' + ex.id + '" role="status"></p><div class="exercise-footer"><button class="check-btn"' + disabled + ' aria-pressed="' + done + '" onclick="toggleDone(\'' + ex.id + '\')">' + icon('check') + (done ? 'Erledigt' : 'Übung abschließen') + '</button><button class="timer-btn"' + disabled + ' data-ex="' + ex.id + '" onclick="toggleTimer(\'' + ex.id + '\')" aria-label="Pausentimer für ' + escapeHtml(ex.name) + '">' + icon('timer') + '<span id="timer-run-' + ex.id + '">' + fmtTime(ex.rest || 90) + '</span></button></div></article>';
   });
-  html += '<aside class="cardio-card"><div>' + icon('arrow') + '<strong>Danach: 20 Minuten Laufband</strong></div><p>Zügiges Gehen. Tempo und Steigung so wählen, dass du noch sprechen kannst. Nach dem Beintag bei Bedarf leichter.</p></aside><div class="finish-actions"><button class="btn primary" onclick="finishTraining(\'' + dayKey + '\')">Einheit speichern & abschließen ' + icon('check') + '</button><p>Deine Rotation läuft beim nächsten Training weiter.</p></div></section>';
+  html += '<aside class="cardio-card"><div>' + icon('arrow') + '<strong>Danach: 20 Minuten Laufband</strong></div><p>Zügiges Gehen. Tempo und Steigung so wählen, dass du noch sprechen kannst. Nach dem Beintag bei Bedarf leichter.</p></aside><div class="finish-actions"><button class="btn primary"' + disabled + ' onclick="finishTraining(\'' + dayKey + '\')">Einheit speichern & abschließen ' + icon('check') + '</button><p>Deine Rotation läuft beim nächsten Training weiter.</p></div></section>';
   return html;
 }
 
@@ -1116,8 +1090,8 @@ function renderInfo() {
   return '<section class="day-panel active" id="panel-info"><div class="eyebrow">DEINE APP</div><h1>Einstellungen</h1>' +
     '<article class="info-card"><h2>Dein Trainingsrahmen</h2><p>Muskelaufbau · 4 flexible Einheiten · ca. 60 Minuten Krafttraining + 20 Minuten Gehen.</p><p>Erst Wiederholungen steigern. Wenn alle Sätze am oberen Ende gelingen und noch 1–2 saubere Wiederholungen möglich wären, den kleinsten passenden Gewichtsschritt wählen.</p><p>Mehrgelenkübungen: meist 2–3 Minuten Pause. Isolationen: meist 1–2 Minuten. Erholung nach Leistung und Befinden planen.</p><p>Orientierung Ernährung: etwa 1,6 g Protein pro Kilogramm Körpergewicht täglich. Kalorienzufuhr nach Ziel und Gewichtsverlauf anpassen.</p></article>' +
     '<article class="info-card"><h2>Auf dem iPhone installieren</h2><ol><li>Diese Seite in Safari öffnen.</li><li>Teilen antippen, dann „Zu Home-Bildschirm hinzufügen“ wählen.</li><li>Falls angeboten: „Als Web-App öffnen“ aktivieren und hinzufügen.</li><li>Die App über das neue Symbol öffnen.</li></ol><p>Nach dem ersten Laden funktioniert der Trainingsplan auch offline. Lokale Daten gehören zu diesem Gerät und dieser Webadresse: vor einem Wechsel ein Backup herunterladen.</p></article>' +
-    '<article class="info-card"><h2>Geräteübergreifend sichern</h2><p>Ohne Serververbindung speichert die App lokal. Die Serveradresse bleibt auf deinem Gerät und gehört nicht in den öffentlichen App-Code.</p><label for="server-url">Serveradresse · optional</label><input id="server-url" class="server-url" type="url" inputmode="url" autocomplete="off" placeholder="https://dein-server/api/state" value="' + escapeHtml(configuredSyncEndpoint()) + '"><button class="btn" onclick="configureSync()">Adresse speichern</button><div class="sync-status" id="sync-status">' + syncStatusHtml() + '</div><div class="btn-row"><button class="btn" onclick="syncPull({force:true})">Server prüfen</button><button class="btn" onclick="syncPush()">Zum Server sichern</button></div></article>' +
-    '<article class="info-card"><h2>Backup & Wiederherstellung</h2><p>Alle Einträge und der vollständige Verlauf als JSON. Vor dem Wiederherstellen wird eine lokale Sicherheitskopie angelegt.</p><div class="btn-row"><button class="btn primary" onclick="downloadBackup()">Backup herunterladen</button><button class="btn" onclick="exportBackup()">Als Text anzeigen</button></div><label for="backup-area">Backup-Text</label><textarea class="backup-area" id="backup-area" placeholder="JSON-Backup hier einfügen"></textarea><button class="btn" onclick="importBackup()">Backup wiederherstellen</button></article>' +
+    '<article class="info-card" id="storage-info"><h2>Nur auf deinem iPhone</h2><p>Gewichte, Wiederholungen und Verlauf bleiben auf diesem Gerät. Es gibt keine Anmeldung, Server-Synchronisierung oder automatische Cloud-Sicherung.</p><p>Speichere regelmäßig ein Datei-Backup, zum Beispiel über „Dateien“ auf iCloud Drive. Die JSON-Datei ist nicht zusätzlich verschlüsselt. Bei Gerätewechsel oder gelöschten Website-Daten brauchst du dieses Backup.</p></article>' +
+    '<article class="info-card" id="backup-card"><h2>Backup & Wiederherstellung</h2><p>Die JSON-Datei enthält den vollständigen Verlauf und offene Trainingsentwürfe. Speichere sie regelmäßig außerhalb dieser App. Eine lokale Sicherheitskopie ersetzt kein Datei-Backup.</p><div class="btn-row"><button class="btn primary" onclick="downloadBackup()">Backup herunterladen</button><button class="btn" onclick="exportBackup()">Als Text anzeigen</button></div><label for="backup-file">Backup-Datei vom Gerät laden</label><input class="backup-file" id="backup-file" type="file" accept=".json,application/json" onchange="importBackupFile(this)"><details><summary>Backup als Text wiederherstellen</summary><label for="backup-area">Backup-Text</label><textarea class="backup-area" id="backup-area" placeholder="JSON-Backup hier einfügen"></textarea><button class="btn" onclick="importBackup()">Backup wiederherstellen</button></details></article>' +
     '<details class="info-card"><summary>Früheren Zusatzplan öffnen</summary><p>Für deinen neuen Plan nicht erforderlich. Alte Übungen und Aufzeichnungen bleiben im Verlauf verfügbar.</p><button class="btn" onclick="pickDay(\'schwach\')">Zusatzplan anzeigen</button></details>' +
     '<details class="info-card danger-zone"><summary>Daten auf diesem Gerät löschen</summary><p>Erst ein Backup herunterladen. Diese Aktion betrifft den lokalen Datensatz.</p><button class="btn danger" onclick="resetAll()">Lokale Daten löschen</button></details></section>';
 }
@@ -1321,58 +1295,51 @@ function drawVerlaufChart() {
 
 function saveCurrentDay(dayKey) {
   if (!saveCurrentState()) return false;
-  const data = loadData();
-  const day = DAYS[dayKey];
+  const before = loadData();
+  const draft = workoutDraft(before,dayKey);
+  if (!draft) { notice('Bitte zuerst ein neues Training starten.'); return false; }
+  const data = JSON.parse(JSON.stringify(before));
   const entries = {};
-  let hasValues = false, incomplete = false;
-  day.exercises.forEach(ex => {
+  let hasValues = false, incomplete = false, invalid = false;
+  DAYS[dayKey].exercises.forEach(ex => {
     entries[ex.id] = {};
     for (let s = 1; s <= ex.sets; s++) {
       const entry = normalizeEntry((data[ex.id] || {})[s]);
       if (entry.w || entry.r) hasValues = true;
       if (!validSet(entry)) incomplete = true;
+      if ((entry.w && numericValue(entry.w) === null) || (entry.r && (numericValue(entry.r) === null || !Number.isInteger(numericValue(entry.r)) || numericValue(entry.r)<1))) invalid = true;
       entries[ex.id][s] = entry;
     }
   });
-  if (!hasValues) { notice('Noch keine Sätze eingetragen. Trage zuerst dein Training ein.'); return false; }
-  if (document.querySelector('[aria-invalid="true"]')) { notice('Bitte die markierten Zahlen korrigieren.'); return false; }
+  if (!hasValues) { notice('Noch keine Sätze eingetragen. Dein Entwurf bleibt geöffnet.'); return false; }
+  if (invalid) { notice('Bitte die markierten Zahlen korrigieren.'); return false; }
   if (incomplete && !confirm('Einige Sätze sind unvollständig. Diese Einheit trotzdem speichern?')) return false;
-  const hist = getHistory(data);
-  const last = hist.at(-1);
-  const duplicate = last && last.day === dayKey && last.date === todayISO() && JSON.stringify(last.entries) === JSON.stringify(entries);
-  const session = data.__session__;
-  if (!duplicate) hist.push({ date: todayISO(), day: dayKey, entries, duration_min: session?.day === dayKey ? Math.max(1, Math.round((Date.now()-session.startedAt)/60000)) : null });
-  data.__dates__ = Object.assign({}, data.__dates__, { [dayKey]: todayISO() });
-  delete data.__session__;
-  return saveData(data);
+  getHistory(data).push({date:todayISO(),day:dayKey,entries,session_id:draft.id});
+  data.__dates__ = Object.assign({},data.__dates__,{[dayKey]:todayISO()});
+  delete data.__drafts__[dayKey];
+  DAYS[dayKey].exercises.forEach(ex=>{delete data[ex.id];if(data.__done__)delete data.__done__[ex.id];});
+  const next=nextRotationAfter(dayKey);
+  data.__rotation__={index:ROTATION.indexOf(next),lastFinish:todayISO()};
+  delete data.__today__;
+  if (!saveData(data)) { volatileData=before; return false; }
+  return true;
 }
 
 function finishTraining(dayKey) {
   if (!saveCurrentDay(dayKey)) return;
-  const data = loadData();
-  const next = nextRotationAfter(dayKey);
-  data.__rotation__ = { index: ROTATION.indexOf(next), lastFinish: todayISO() };
-  delete data.__today__;
-  if (!saveData(data)) return;
   Object.keys(window.__timers).forEach(stopTimer);
   renderAll();
-  notice(DAY_LABEL[dayKey] + ' gespeichert. Nächste Einheit: ' + DAY_LABEL[next] + '.');
+  notice(DAY_LABEL[dayKey] + ' gespeichert. Nächste Einheit: ' + DAY_LABEL[nextRotationAfter(dayKey)] + '.');
 }
 
 function clearCurrentDay(dayKey) {
-  if (!confirm('Einträge für eine neue Einheit leeren? Dein gespeicherter Verlauf bleibt erhalten.')) return;
-  const data = loadData();
-  syncStashLocal(data);
-  DAYS[dayKey].exercises.forEach(ex => { delete data[ex.id]; if (data.__done__) delete data.__done__[ex.id]; });
-  delete data.__session__;
-  if (!saveData(data)) return;
-  renderAll();
+  if (!confirm('Diesen Trainingsentwurf neu beginnen? Bereits abgeschlossene Trainings bleiben im Verlauf.')) return;
+  if (!stashLocal(loadData())) { notice('Keine Sicherheitskopie möglich. Der Entwurf bleibt erhalten.'); return; }
+  startTraining(dayKey,true);
 }
 
 function resetAll() {
   if (!confirm('ALLE gespeicherten Daten unwiderruflich loeschen?')) return;
-  clearTimeout(__pushTimer);
-  window.__syncReady = false;
   volatileData = null;
   localStorage.removeItem(STORAGE_KEY);
   currentView = 'upper-a';
@@ -1383,8 +1350,8 @@ function resetAll() {
 
 function exportBackup() {
   const area = document.getElementById('backup-area');
-  area.value = JSON.stringify(loadData(), null, 2);
-  notice('Backup-Text bereit. Du kannst ihn kopieren oder als Datei herunterladen.');
+  area.value = JSON.stringify(backupData(), null, 2);
+  notice('Backup-Text bereit. Er enthält Verlauf und offene Trainingsentwürfe.');
 }
 
 function flashBackupBtn(msg) {
@@ -1401,187 +1368,26 @@ function importBackup() {
   let parsed;
   try { parsed = validateBackup(JSON.parse(document.getElementById('backup-area').value)); }
   catch (error) { notice('Backup konnte nicht geladen werden: ' + error.message); return; }
+  restoreBackup(parsed);
+}
+
+function restoreBackup(parsed) {
   if (!confirm('Aktuelle Daten durch dieses Backup ersetzen? Eine lokale Sicherheitskopie wird angelegt.')) return;
-  syncStashLocal(loadData());
-  parsed.__sync__ = { updatedAt: Date.now(), pending: true, endpoint: configuredSyncEndpoint() || parsed.__sync__?.endpoint };
-  if (!saveData(parsed)) return;
-  renderAll(); notice('Backup wiederhergestellt.');
+  const before=loadData();
+  if (!stashLocal(before)) { notice('Keine Sicherheitskopie möglich. Die aktuellen Daten bleiben erhalten.'); return; }
+  delete parsed.__sync__;
+  migrateWorkouts(parsed);
+  if (!saveData(parsed)) { volatileData=before; return; }
+  renderAll(); notice('Backup wiederhergestellt. Verlauf und offene Entwürfe sind verfügbar.');
 }
 
-/* ---------- Server-Sync (Zentrale im Heim-Server) ---------- */
-
-window.__syncReady = false;
-window.__applyingRemote = false;
-window.__syncStatus = { state: 'init', at: null, msg: '' };
-let __syncEndpoint = null;
-let __pushTimer = null;
-let __syncing = false;
-
-function configuredSyncEndpoint() {
-  try { return localStorage.getItem(STORAGE_KEY + '-server-url') || loadData().__sync__?.endpoint || ''; }
-  catch { return ''; }
-}
-
-function validSyncEndpoint(value) {
-  try {
-    const url = new URL(value);
-    if (url.username || url.password || url.search || url.hash || !url.pathname.endsWith('/api/state')) return false;
-    return url.protocol === 'https:' || (url.protocol === 'http:' && url.origin === location.origin);
-  } catch { return false; }
-}
-
-function syncCandidates() {
-  const list = [];
-  const configured = configuredSyncEndpoint();
-  if (configured && validSyncEndpoint(configured)) list.push(configured);
-  if (location.protocol === 'http:' || location.protocol === 'https:') list.push(location.origin + '/api/state');
-  return list.filter(function(u, i, a) { return a.indexOf(u) === i; });
-}
-
-function configureSync() {
-  const value = document.getElementById('server-url').value.trim();
-  if (value && !validSyncEndpoint(value)) { notice('Bitte eine HTTPS-Adresse ohne Zugangsdaten angeben, die auf /api/state endet.'); return; }
-  try { localStorage.setItem(STORAGE_KEY + '-server-url', value); }
-  catch { notice('Die Serveradresse konnte nicht auf diesem Gerät gespeichert werden.'); return; }
-  const data = loadData();
-  if (data.__sync__) delete data.__sync__.endpoint;
-  if (!saveData(data,true)) return;
-  __syncEndpoint = null;
-  window.__syncReady = true;
-  notice(value ? 'Serveradresse auf diesem Gerät gespeichert.' : 'Eigene Serveradresse entfernt.');
-  syncPull({force:true});
-}
-
-function syncClientName() {
-  const dev = /iPhone/i.test(navigator.userAgent) ? 'iPhone' : (/iPad/i.test(navigator.userAgent) ? 'iPad' : 'Browser');
-  return dev + '@' + location.host;
-}
-
-function syncFetch(url, opts, ms) {
-  const ctl = new AbortController();
-  const t = setTimeout(function() { ctl.abort(); }, ms || 8000);
-  return fetch(url, Object.assign({ cache: 'no-store', signal: ctl.signal }, opts || {}))
-    .finally(function() { clearTimeout(t); });
-}
-
-function syncStatusHtml() {
-  const s = window.__syncStatus || {};
-  const t = s.at ? new Date(s.at).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) : '';
-  if (s.state === 'pulled') return '☁ <strong>Daten vom Server geladen</strong>' + (t ? ' · ' + t : '');
-  if (s.state === 'pushed') return '☁ <strong>Zum Server gesichert</strong>' + (t ? ' · ' + t : '');
-  if (s.state === 'ok') return '☁ Server verbunden · alles aktuell' + (t ? ' · ' + t : '');
-  if (s.state === 'offline') return '⚠ Server nicht erreichbar — deine Eingaben liegen auf diesem Gerät und werden automatisch nachgeholt';
-  if (s.state === 'error') return '⚠ Sync-Fehler: ' + escapeHtml(s.msg || 'unbekannt');
-  return '☁ Sync wird geprüft …';
-}
-
-function setSyncStatus(state, msg) {
-  window.__syncStatus = { state: state, at: Date.now(), msg: msg || '' };
-  const el = document.getElementById('sync-status');
-  if (el) { el.className = 'sync-status s-' + state; el.innerHTML = syncStatusHtml(); }
-}
-
-async function syncDiscover(force) {
-  if (__syncEndpoint && !force) return __syncEndpoint;
-  const local = loadData();
-  if (!force && local.__sync__ && validSyncEndpoint(local.__sync__.endpoint)) {
-    __syncEndpoint = local.__sync__.endpoint;
-    return __syncEndpoint;
-  }
-  const candidates = syncCandidates();
-  for (let i = 0; i < candidates.length; i++) {
-    const cand = candidates[i];
-    try {
-      const r = await syncFetch(cand.replace(/\/state$/, '/health'), {}, 5000);
-      if (r && r.ok) {
-        const j = await r.json();
-        if (j && j.ok) { __syncEndpoint = cand; return cand; }
-      }
-    } catch (e) { /* naechsten Kandidaten probieren */ }
-  }
-  return null;
-}
-
-/* Hat der Datensatz echte Inhalte (Uebungen oder Verlauf)? */
-function syncHasContent(data) {
-  if (!data || typeof data !== 'object') return false;
-  if (Array.isArray(data.__history__) && data.__history__.length) return true;
-  return Object.keys(data).some(function(k) {
-    return k.indexOf('__') !== 0 && data[k] && typeof data[k] === 'object' && Object.keys(data[k]).length > 0;
-  });
-}
-
-function syncStashLocal(data) {
-  try {
-    const key = STORAGE_KEY + '-backup-' + new Date().toISOString().replace(/[:T]/g, '-').slice(0, 19);
-    localStorage.setItem(key, JSON.stringify(data));
-    const keys = Object.keys(localStorage).filter(function(k) { return k.indexOf(STORAGE_KEY + '-backup-') === 0; }).sort();
-    keys.slice(0, Math.max(0, keys.length - 5)).forEach(function(k) { localStorage.removeItem(k); });
-  } catch (e) { /* Speicher voll o.ae. — Sync darf daran nicht scheitern */ }
-}
-
-async function syncPush() {
-  if (__syncing) { queuePush(); return null; }
-  const ep = await syncDiscover(false);
-  if (!ep) { setSyncStatus('offline'); return null; }
-  const data = loadData();
-  if (!syncHasContent(data)) { setSyncStatus('ok'); return null; }
-  const at = data.__sync__?.updatedAt || Date.now();
-  __syncing = true;
-  try {
-    const r = await syncFetch(ep, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({data,clientUpdatedAt:at,client:syncClientName()})},12000);
-    if (!r.ok) throw new Error('HTTP ' + r.status);
-    const result = await r.json();
-    if (!result || result.applied !== true) { setSyncStatus('error','Server hat die Speicherung nicht bestätigt. Lokale Daten bleiben erhalten.'); return result; }
-    const latest = loadData();
-    if (latest.__sync__?.updatedAt === at) {
-      latest.__sync__ = Object.assign({},latest.__sync__,{lastPush:Date.now(),endpoint:ep,pending:false}); saveData(latest,true);
-    } else queuePush();
-    setSyncStatus('pushed'); return result;
-  } catch (error) { setSyncStatus('error',error.message); return null; }
-  finally { __syncing = false; }
-}
-
-async function syncPull(opts) {
-  if (__syncing) return null;
-  const revision = localRevision;
-  const ep = await syncDiscover(!!opts?.force);
-  if (!ep) { setSyncStatus('offline'); return null; }
-  try {
-    const r = await syncFetch(ep,{},12000);
-    if (!r.ok) throw new Error('HTTP ' + r.status);
-    const remote = await r.json();
-    const local = loadData();
-    if (localRevision !== revision || document.activeElement.matches('input,textarea')) {
-      pendingRemote = true; return 'deferred';
-    }
-    const remoteHas = syncHasContent(remote.data), localHas = syncHasContent(local);
-    if (localHas && local.__sync__?.pending) {
-      if (remoteHas) syncStashLocal(remote.data);
-      await syncPush(); return 'pushed';
-    }
-    if (remoteHas && (!localHas || remote.updatedAt > (local.__sync__?.updatedAt || 0))) {
-      const incoming = validateBackup(remote.data);
-      syncStashLocal(local);
-      incoming.__sync__ = {updatedAt:remote.updatedAt,endpoint:ep,lastPull:Date.now(),pending:false};
-      if (!saveData(incoming,true)) return null;
-      renderAll(); setSyncStatus('pulled'); return 'pulled';
-    }
-    if (localHas && (!remoteHas || (local.__sync__?.updatedAt || 0) > (remote.updatedAt || 0))) { await syncPush(); return 'pushed'; }
-    setSyncStatus('ok'); return 'ok';
-  } catch (error) { setSyncStatus('error',error.message); return null; }
-}
-
-function queuePush() {
-  clearTimeout(__pushTimer);
-  __pushTimer = setTimeout(function() { syncPush(); }, 3000);
-}
-
-async function initSync() {
-  const ep = await syncDiscover(true);
-  window.__syncReady = true;
-  if (!ep) { setSyncStatus('offline'); return; }
-  await syncPull({});
+async function importBackupFile(input) {
+  const file=input.files?.[0];
+  if (!file) return;
+  if (file.size>10*1024*1024) { notice('Die Backup-Datei ist größer als 10 MB und kann hier nicht geladen werden.'); input.value=''; return; }
+  try { restoreBackup(validateBackup(JSON.parse(await file.text()))); }
+  catch(error) { notice('Backup konnte nicht geladen werden: '+error.message); }
+  input.value='';
 }
 
 /* ---------- Render-All / Tabs / Events ---------- */
@@ -1644,15 +1450,12 @@ document.querySelectorAll('nav button').forEach(btn => btn.addEventListener('cli
   jumpToDay(next);
 }));
 currentView = currentRotationDay(loadData());
-const initial = loadData(); migrateData(initial); saveData(initial, true);
+const initial = loadData(); migrateData(initial); migrateWorkouts(initial); saveData(initial, true);
+currentView = currentRotationDay(initial);
 renderAll();
 window.addEventListener('resize', () => { if (currentView === 'verlauf') drawVerlaufChart(); });
 window.addEventListener('pagehide', () => saveCurrentState());
 document.addEventListener('visibilitychange', () => { if (document.hidden) saveCurrentState(); });
-window.addEventListener('online', () => syncPull({}));
-document.addEventListener('focusout', () => {
-  setTimeout(() => { if (pendingRemote && !document.activeElement.matches('input,textarea')) { pendingRemote = false; syncPull({}); } }, 0);
-});
 let editingInput = null;
 function updateInputTools() {
   const active = document.activeElement;
@@ -1664,9 +1467,20 @@ function updateInputTools() {
   const offset = viewport ? Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop) : 0;
   document.documentElement.style.setProperty('--keyboard-offset', offset + 'px');
 }
-document.addEventListener('focusin', updateInputTools);
+function revealEditingInput() {
+  requestAnimationFrame(() => {
+    const input=document.activeElement;
+    if (!input.matches('.weight-input,.reps-input')) return;
+    const rect=input.getBoundingClientRect();
+    const toolbar=document.getElementById('input-tools').getBoundingClientRect();
+    const viewportTop=window.visualViewport?.offsetTop || 0;
+    if (rect.bottom>toolbar.top-12) window.scrollBy(0,rect.bottom-toolbar.top+12);
+    else if (rect.top<viewportTop+12) window.scrollBy(0,rect.top-viewportTop-12);
+  });
+}
+document.addEventListener('focusin', () => {updateInputTools();revealEditingInput();});
 document.addEventListener('focusout', () => setTimeout(updateInputTools, 0));
-window.visualViewport?.addEventListener('resize', updateInputTools);
+window.visualViewport?.addEventListener('resize', () => {updateInputTools();revealEditingInput();});
 window.visualViewport?.addEventListener('scroll', updateInputTools);
 document.querySelectorAll('[data-input-action]').forEach(button => {
   button.addEventListener('pointerdown', event => event.preventDefault());
@@ -1679,7 +1493,7 @@ document.querySelectorAll('[data-input-action]').forEach(button => {
     if (target) target.focus();
   });
 });
-setTimeout(initSync, 700);
+
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
   let reloadForUpdate = false;
   navigator.serviceWorker.register('./sw.js').then(reg => {
@@ -1712,10 +1526,11 @@ function validateInput(input) {
 
 function downloadBackup() {
   saveCurrentState();
-  const raw = JSON.stringify(loadData(), null, 2);
+  const raw = JSON.stringify(backupData(), null, 2);
   const url = URL.createObjectURL(new Blob([raw], {type:'application/json'}));
   const a = document.createElement('a'); a.href = url; a.download = 'training-backup-' + todayISO() + '.json'; a.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+  notice('Backup-Download gestartet. Lege die JSON-Datei in „Dateien“ an einem sicheren Ort ab.');
 }
 function validateBackup(data) {
   if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('Das Backup muss ein JSON-Objekt sein.');
@@ -1731,10 +1546,87 @@ function validateBackup(data) {
     }
   };
   checkEntries(Object.fromEntries(Object.entries(data).filter(([key]) => !key.startsWith('__'))));
+  if (data.__drafts__ !== undefined) {
+    if (!data.__drafts__ || typeof data.__drafts__!=='object' || Array.isArray(data.__drafts__)) throw new Error('Ungültige Trainingsentwürfe.');
+    for (const [day,draft] of Object.entries(data.__drafts__)) {
+      if (!DAYS[day]?.exercises || !draft || typeof draft.id!=='string' || !draft.id || !Number.isFinite(draft.startedAt) || draft.startedAt<=0) throw new Error('Ungültiger Trainingsentwurf.');
+    }
+  }
   if (data.__history__ !== undefined && !Array.isArray(data.__history__)) throw new Error('Ungültiger Verlauf.');
   for (const h of data.__history__ || []) {
     if (!h || !/^\d{4}-\d{2}-\d{2}$/.test(h.date) || !['upper-a','lower-a','upper-b','lower-b','schwach','migration'].includes(h.day)) throw new Error('Ungültiger Verlaufseintrag.');
     checkEntries(h.entries);
   }
+  return data;
+}
+
+function workoutDraft(data,dayKey) {
+  return data.__drafts__ && data.__drafts__[dayKey] || null;
+}
+function migrateWorkouts(data) {
+  if (data.__workoutSchema__ === 1) return;
+  data.__drafts__ = data.__drafts__ || {};
+  Object.entries(DAYS).forEach(([dayKey,day])=>{
+    if (!day.exercises || data.__drafts__[dayKey]) return;
+    const last=getHistory(data).filter(h=>h.day===dayKey).at(-1);
+    const hasValues=day.exercises.some(ex=>Object.values(data[ex.id]||{}).some(v=>{const n=normalizeEntry(v);return n.w||n.r;}));
+    const differs=day.exercises.some(ex=>Object.entries(data[ex.id]||{}).some(([s,v])=>{
+      const n=normalizeEntry(v),previous=normalizeEntry(last?.entries?.[ex.id]?.[s]);
+      return (n.w||n.r) && (n.w!==previous.w || n.r!==previous.r);
+    }));
+    const oldSession=data.__session__?.day===dayKey ? data.__session__ : null;
+    if (hasValues && (oldSession || !last || differs)) {
+      const startedAt=Number.isFinite(oldSession?.startedAt) ? oldSession.startedAt : Date.now();
+      data.__drafts__[dayKey]={id:'recovered-'+dayKey+'-'+startedAt,startedAt,recovered:true};
+    }
+  });
+  delete data.__session__;
+  data.__workoutSchema__=1;
+}
+function startTraining(dayKey,replace=false) {
+  if (!DAYS[dayKey]?.exercises) return;
+  const before=loadData();
+  const data=JSON.parse(JSON.stringify(before));
+  if (workoutDraft(data,dayKey) && !replace) {
+    notice('Dein Trainingsentwurf wird fortgesetzt.');
+    return;
+  }
+  data.__drafts__=data.__drafts__||{};
+  DAYS[dayKey].exercises.forEach(ex=>{delete data[ex.id];if(data.__done__)delete data.__done__[ex.id];});
+  data.__drafts__[dayKey]={id:crypto.randomUUID(),startedAt:Date.now()};
+  data.__workoutSchema__=1;
+  data.__today__={date:todayISO(),day:dayKey};
+  if (!saveData(data)) { volatileData=before; return; }
+  currentView=dayKey;renderAll();
+}
+function copyLastValues(dayKey) {
+  if (!saveCurrentState()) return;
+  const data=loadData();
+  if (!workoutDraft(data,dayKey)) return;
+  let filled=0;
+  DAYS[dayKey].exercises.forEach(ex=>{
+    const previous=getLastEntry(data,ex.id);
+    if (!previous) return;
+    for(let s=1;s<=ex.sets;s++){
+      const current=normalizeEntry(data[ex.id]?.[s]),old=normalizeEntry(previous.weights[s]);
+      for(const field of ['w','r'])if(!current[field] && old[field]){current[field]=old[field];filled++;}
+      if (!data[ex.id])data[ex.id]={};data[ex.id][s]=current;
+    }
+  });
+  if (!saveData(data)) return;
+  renderAll();notice(filled ? 'Letzte Werte in leere Felder übernommen. Bitte für heute prüfen; Übungen bleiben offen.' : 'Keine weiteren Werte zum Übernehmen vorhanden.');
+}
+function stashLocal(data) {
+  try {
+    const key=STORAGE_KEY+'-backup-'+Date.now();
+    localStorage.setItem(key,JSON.stringify(data));
+    const keys=Object.keys(localStorage).filter(k=>k.startsWith(STORAGE_KEY+'-backup-')).sort();
+    keys.slice(0,Math.max(0,keys.length-5)).forEach(k=>localStorage.removeItem(k));
+    return true;
+  } catch { return false; }
+}
+function backupData() {
+  const data=loadData();
+  delete data.__sync__;
   return data;
 }
